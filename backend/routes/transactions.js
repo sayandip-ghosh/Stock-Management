@@ -34,3 +34,4 @@ router.get('/part/:part_id', getTransactionsByPart);
 router.get('/stats/overview', getTransactionStatistics);
 
 module.exports = router;
+

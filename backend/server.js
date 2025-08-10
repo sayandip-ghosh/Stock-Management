@@ -13,7 +13,7 @@ const PORT = process.env.PORT ;
 const partRoutes = require('./routes/parts');
 const assemblyRoutes = require('./routes/assemblies');
 const transactionRoutes = require('./routes/transactions');
-
+const stockManagementRoutes = require('./routes/stockManagement');
 // Middleware
 app.use(helmet());
 app.use(morgan('combined'));
@@ -47,7 +47,7 @@ app.get('/health', (req, res) => {
 app.use('/api/parts', partRoutes);
 app.use('/api/assemblies', assemblyRoutes);
 app.use('/api/transactions', transactionRoutes);
-
+app.use('/api/stock-management', stockManagementRoutes);
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({ 

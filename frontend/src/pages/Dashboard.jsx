@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
-import PartsModal from '../components/PartsModal';
 import { partsAPI, assembliesAPI } from '../services/api';
 
 const Dashboard = () => {
@@ -9,8 +8,6 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedPart, setSelectedPart] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -30,7 +27,6 @@ const Dashboard = () => {
       setAssemblies(assembliesResponse.data.assemblies || []);
     } catch (err) {
       console.error('Error fetching data:', err);
-      // Check if it's a network error or server error
       if (err.code === 'ERR_NETWORK' || err.message.includes('Network Error')) {
         setError('Unable to connect to server. Please check your connection.');
       } else {
@@ -41,51 +37,19 @@ const Dashboard = () => {
     }
   };
 
-  const handleSavePart = async (formData) => {
-    try {
-      if (selectedPart) {
-        // Update existing part
-        await partsAPI.update(selectedPart._id, formData);
-      } else {
-        // Create new part
-        await partsAPI.create(formData);
-      }
-      fetchData(); // Refresh the data
-    } catch (error) {
-      console.error('Error saving part:', error);
-      throw error;
-    }
-  };
-
-  const handleDeletePart = async (partId) => {
-    try {
-      await partsAPI.delete(partId);
-      fetchData(); // Refresh the data
-    } catch (error) {
-      console.error('Error deleting part:', error);
-      throw error;
-    }
-  };
-
-  const handleEditPart = (part) => {
-    setSelectedPart(part);
-    setIsModalOpen(true);
-  };
-
-  const handleAddPart = () => {
-    setSelectedPart(null);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setSelectedPart(null);
-  };
-
   const filteredParts = parts.filter(part =>
     part.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     part.category?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Calculate stock statistics
+  const inStockCount = parts.filter(part => (part.quantity_in_stock || 0) > 0).length;
+  const lowStockCount = parts.filter(part => {
+    const quantity = part.quantity_in_stock || 0;
+    const minLevel = part.min_stock_level || 10;
+    return quantity > 0 && quantity <= minLevel;
+  }).length;
+  const outOfStockCount = parts.filter(part => !part.quantity_in_stock || part.quantity_in_stock === 0).length;
 
   if (loading) {
     return (
@@ -124,7 +88,7 @@ const Dashboard = () => {
       <div className="space-y-6">
         {/* Page Header */}
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">Stock</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
           <div className="flex items-center space-x-4">
             <div className="relative">
               <input
@@ -142,7 +106,7 @@ const Dashboard = () => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
               <div className="p-2 bg-blue-100 rounded-lg">
@@ -158,11 +122,23 @@ const Dashboard = () => {
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
               <div className="p-2 bg-green-100 rounded-lg">
-                <span className="text-green-600 text-xl">🔧</span>
+                <span className="text-green-600 text-xl">✅</span>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Assemblies</p>
-                <p className="text-2xl font-bold text-gray-900">{assemblies.length || 0}</p>
+                <p className="text-sm font-medium text-gray-600">In Stock</p>
+                <p className="text-2xl font-bold text-gray-900">{inStockCount}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <span className="text-yellow-600 text-xl">⚠️</span>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Low Stock</p>
+                <p className="text-2xl font-bold text-gray-900">{lowStockCount}</p>
               </div>
             </div>
           </div>
@@ -170,29 +146,21 @@ const Dashboard = () => {
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
               <div className="p-2 bg-red-100 rounded-lg">
-                <span className="text-red-600 text-xl">⚠️</span>
+                <span className="text-red-600 text-xl">❌</span>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Low Stock Items</p>
-                <p className="text-2xl font-bold text-gray-900">
-                                     {parts.filter(part => (part.quantity_in_stock || 0) < (part.min_stock_level || 10)).length || 0}
-                </p>
+                <p className="text-sm font-medium text-gray-600">Out of Stock</p>
+                <p className="text-2xl font-bold text-gray-900">{outOfStockCount}</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Stock Table */}
+        {/* Parts Table */}
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Stock Management</h2>
-              <button 
-                onClick={handleAddPart}
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                Add Parts
-              </button>
+              <h2 className="text-lg font-semibold text-gray-900">Parts Overview</h2>
             </div>
           </div>
           
@@ -200,76 +168,71 @@ const Dashboard = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <input type="checkbox" className="rounded border-gray-300 text-purple-600 focus:ring-purple-500" />
-                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sn</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock Quantity</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Min Stock</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredParts.length > 0 ? (
-                  filteredParts.map((part, index) => (
-                    <tr key={part._id || index} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <input type="checkbox" className="rounded border-gray-300 text-purple-600 focus:ring-purple-500" />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{String(index + 1).padStart(2, '0')}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center mr-3">
-                            <span className="text-gray-600 text-xs">📦</span>
+                  filteredParts.map((part, index) => {
+                    const quantity = part.quantity_in_stock || 0;
+                    const minLevel = part.min_stock_level || 10;
+                    let statusClass = '';
+                    let statusText = '';
+                    
+                    if (quantity === 0) {
+                      statusClass = 'bg-red-100 text-red-800';
+                      statusText = 'Out of Stock';
+                    } else if (quantity <= minLevel) {
+                      statusClass = 'bg-yellow-100 text-yellow-800';
+                      statusText = 'Low Stock';
+                    } else {
+                      statusClass = 'bg-green-100 text-green-800';
+                      statusText = 'In Stock';
+                    }
+
+                    return (
+                      <tr key={part._id || index} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{String(index + 1).padStart(2, '0')}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center mr-3">
+                              <span className="text-gray-600 text-xs">📦</span>
+                            </div>
+                            <span className="text-sm text-gray-900">{part.name || 'Unnamed Part'}</span>
                           </div>
-                          <span className="text-sm text-gray-900">{part.name || 'Unnamed Part'}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{part.category || 'Uncategorized'}</td>
-                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{part.quantity_in_stock || 0}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{part.min_stock_level || 10}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${part.price || 0}</td>
-                                             <td className="px-6 py-4 whitespace-nowrap">
-                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                           (part.quantity_in_stock || 0) > (part.min_stock_level || 10)
-                             ? 'bg-green-100 text-green-800'
-                             : 'bg-red-100 text-red-800'
-                         }`}>
-                           {(part.quantity_in_stock || 0) > (part.min_stock_level || 10) ? 'In Stock' : 'Low Stock'}
-                         </span>
-                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <div className="flex items-center space-x-2">
-                          <button 
-                            onClick={() => handleEditPart(part)}
-                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                          >
-                            Edit
-                          </button>
-                          <button 
-                            onClick={() => handleDeletePart(part._id)}
-                            className="text-red-600 hover:text-red-800 text-sm font-medium"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{part.category || 'Uncategorized'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {part.description || 'No description available'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{quantity}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{minLevel}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${part.price || 0}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusClass}`}>
+                            {statusText}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
-                    <td colSpan="9" className="px-6 py-4 text-center">
+                    <td colSpan="8" className="px-6 py-4 text-center">
                       <div className="py-8">
                         <div className="text-gray-400 text-4xl mb-4">📦</div>
                         <div className="text-gray-500 text-lg font-medium mb-2">
-                          {searchTerm ? 'No parts found matching your search.' : 'No data available right now.'}
+                          {searchTerm ? 'No parts found matching your search.' : 'No parts available right now.'}
                         </div>
                         <div className="text-gray-400 text-sm">
-                          {searchTerm ? 'Try adjusting your search terms.' : 'Add some parts to get started.'}
+                          {searchTerm ? 'Try adjusting your search terms.' : 'No parts data available.'}
                         </div>
                       </div>
                     </td>
@@ -294,15 +257,6 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
-
-      {/* Parts Modal */}
-      <PartsModal
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        part={selectedPart}
-        onSave={handleSavePart}
-        onDelete={handleDeletePart}
-      />
     </Layout>
   );
 };

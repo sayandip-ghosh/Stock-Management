@@ -16,7 +16,7 @@ const stockTransactionSchema = new mongoose.Schema({
   transaction_type: {
     type: String,
     required: true,
-    enum: ['IN', 'OUT', 'ADJUSTMENT', 'ASSEMBLY_BUILD', 'ASSEMBLY_DISASSEMBLE'],
+    enum: ['DELIVERY', 'WITHDRAWAL', 'ADJUSTMENT', 'ASSEMBLY_BUILD', 'ASSEMBLY_DISASSEMBLE'],
     default: 'ADJUSTMENT'
   },
   quantity: {
@@ -53,7 +53,6 @@ const stockTransactionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Assembly'
   },
-
   notes: {
     type: String,
     trim: true,
@@ -78,7 +77,7 @@ const stockTransactionSchema = new mongoose.Schema({
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true },
-  collection: 'stock'
+  collection: 'stock_transactions'
 });
 
 // Indexes for better query performance
@@ -89,7 +88,6 @@ stockTransactionSchema.index({ date: -1 });
 stockTransactionSchema.index({ reference: 1 });
 stockTransactionSchema.index({ assembly_reference: 1 });
 
-
 // Compound indexes for common queries
 stockTransactionSchema.index({ part_reference: 1, date: -1 });
 stockTransactionSchema.index({ transaction_type: 1, date: -1 });
@@ -98,7 +96,6 @@ stockTransactionSchema.index({ transaction_type: 1, date: -1 });
 stockTransactionSchema.pre('save', async function(next) {
   if (!this.transaction_id) {
     try {
-      // Use a more reliable method to generate unique transaction_id
       const lastTransaction = await this.constructor.findOne({}, {}, { sort: { 'transaction_id': -1 } });
       let nextNumber = 1;
       
@@ -109,7 +106,6 @@ stockTransactionSchema.pre('save', async function(next) {
         }
       }
       
-      // Check if this transaction_id already exists
       let attempts = 0;
       let transactionId;
       do {
@@ -119,11 +115,10 @@ stockTransactionSchema.pre('save', async function(next) {
           break;
         }
         attempts++;
-      } while (attempts < 100); // Prevent infinite loop
+      } while (attempts < 100);
       
       this.transaction_id = transactionId;
     } catch (error) {
-      // Fallback to timestamp-based ID if there's an error
       this.transaction_id = `TXN${Date.now().toString().slice(-6)}`;
     }
   }
@@ -143,10 +138,10 @@ stockTransactionSchema.virtual('description').get(function() {
   const ref = this.reference || 'N/A';
   
   switch (type) {
-    case 'IN':
-      return `Stock IN: ${qty} units (Ref: ${ref})`;
-    case 'OUT':
-      return `Stock OUT: ${qty} units (Ref: ${ref})`;
+    case 'DELIVERY':
+      return `Stock Delivery: ${qty} units (Ref: ${ref})`;
+    case 'WITHDRAWAL':
+      return `Stock Withdrawal: ${qty} units (Ref: ${ref})`;
     case 'ASSEMBLY_BUILD':
       return `Assembly Build: ${qty} units consumed (Ref: ${ref})`;
     case 'ASSEMBLY_DISASSEMBLE':

@@ -1,17 +1,25 @@
 import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const SideNav = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const navItems = [
-    { name: 'Dashboard', icon: '📊', count: null },
-    { name: 'Order', icon: '🛍️', count: 7 },
-    { name: 'Offers', icon: '⚙️', count: 2 },
-    { name: 'Products', icon: '📦', count: 120 },
-    { name: 'Stock', icon: '🏠', count: null, active: true },
-    { name: 'Message', icon: '💬', count: 1 },
-    { name: 'Feeds', icon: '📋', count: null },
-    { name: 'Settings', icon: '⚙️', count: null },
-    { name: 'Back to Home', icon: '🏠', count: null }
+    { name: 'Dashboard', icon: '📊', path: '/dashboard', count: null },
+    { name: 'Add Stocks', icon: '📦', path: '/in-stocks', count: null },
+    { name: 'Order', icon: '🛍️', path: '/order', count: 7 },
+    { name: 'Offers', icon: '⚙️', path: '/offers', count: 2 },
+    { name: 'Products', icon: '📦', path: '/products', count: 120 },
+    { name: 'Message', icon: '💬', path: '/message', count: 1 },
+    { name: 'Feeds', icon: '📋', path: '/feeds', count: null },
+    { name: 'Settings', icon: '⚙️', path: '/settings', count: null },
+    { name: 'Back to Home', icon: '🏠', path: '/', count: null }
   ];
+
+  const handleNavigation = (path) => {
+    navigate(path);
+  };
 
   return (
     <div className="w-64 bg-white h-screen border-r border-gray-200 flex flex-col">
@@ -30,10 +38,10 @@ const SideNav = () => {
         <ul className="space-y-2">
           {navItems.map((item, index) => (
             <li key={index}>
-              <a
-                href="#"
-                className={`flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
-                  item.active
+              <button
+                onClick={() => handleNavigation(item.path)}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
+                  location.pathname === item.path
                     ? 'bg-purple-100 text-purple-600 border-r-2 border-purple-600'
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
@@ -47,7 +55,7 @@ const SideNav = () => {
                     {item.count}
                   </span>
                 )}
-              </a>
+              </button>
             </li>
           ))}
         </ul>

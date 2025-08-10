@@ -28,6 +28,32 @@ api.interceptors.response.use(
   }
 );
 
+
+// Stock Management API endpoints
+export const stockManagementAPI = {
+  
+  performStockOperation: (data) => 
+    api.post('/stock-management/operation', data),
+  
+  getPartStockHistory: (partId, params = {}) => 
+    api.get(`/stock-management/history/${partId}`, { params }),
+   
+  getCurrentStockLevels: (params = {}) => 
+    api.get('/stock-management/current-levels', { params })
+};
+
+
+
+// Suppliers API
+export const suppliersAPI = {
+  getAll: () => api.get('/suppliers'),
+  getById: (id) => api.get(`/suppliers/${id}`),
+  create: (data) => api.post('/suppliers', data),
+  update: (id, data) => api.put(`/suppliers/${id}`, data),
+  delete: (id) => api.delete(`/suppliers/${id}`),
+  getActive: () => api.get('/suppliers/dropdown/active')
+};
+
 // Parts API
 export const partsAPI = {
   getAll: () => api.get('/parts'),
@@ -51,6 +77,17 @@ export const assembliesAPI = {
   removePart: (id, partId) => api.delete(`/assemblies/${id}/parts/${partId}`),
   build: (id, data) => api.post(`/assemblies/${id}/build`, data),
   getStats: () => api.get('/assemblies/stats/summary'),
+};
+
+// Transactions API
+export const transactionsAPI = {
+  getAll: () => api.get('/transactions'),
+  getById: (id) => api.get(`/transactions/${id}`),
+  create: (data) => api.post('/transactions', data),
+  getSummary: () => api.get('/transactions/summary/overview'),
+  getRecent: () => api.get('/transactions/recent/list'),
+  getByPart: (partId) => api.get(`/transactions/part/${partId}`),
+  getStatistics: () => api.get('/transactions/stats/overview')
 };
 
 export default api;
