@@ -7,14 +7,9 @@ const SideNav = () => {
 
   const navItems = [
     { name: 'Dashboard', icon: '📊', path: '/dashboard', count: null },
-    { name: 'Add Stocks', icon: '📦', path: '/in-stocks', count: null },
-    { name: 'Order', icon: '🛍️', path: '/order', count: 7 },
-    { name: 'Offers', icon: '⚙️', path: '/offers', count: 2 },
-    { name: 'Products', icon: '📦', path: '/products', count: 120 },
-    { name: 'Message', icon: '💬', path: '/message', count: 1 },
-    { name: 'Feeds', icon: '📋', path: '/feeds', count: null },
+    { name: 'Add Parts', icon: '📦', path: '/in-stocks', count: null },
+    { name: 'Assembly', icon: '⚙️', path: '/assembly', count: null },
     { name: 'Settings', icon: '⚙️', path: '/settings', count: null },
-    { name: 'Back to Home', icon: '🏠', path: '/', count: null }
   ];
 
   const handleNavigation = (path) => {
