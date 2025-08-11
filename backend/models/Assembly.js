@@ -3,7 +3,6 @@ const mongoose = require('mongoose');
 const assemblySchema = new mongoose.Schema({
   assembly_id: {
     type: String,
-    required: true,
     unique: true,
     trim: true,
     uppercase: true
@@ -61,11 +60,21 @@ assemblySchema.index({ is_active: 1 });
 
 // Pre-save middleware to generate assembly_id if not provided
 assemblySchema.pre('save', async function(next) {
-  if (!this.assembly_id) {
-    const count = await this.constructor.countDocuments();
-    this.assembly_id = `ASM${String(count + 1).padStart(4, '0')}`;
+  try {
+    if (!this.assembly_id) {
+      let count = 0;
+      try {
+        count = await this.constructor.countDocuments();
+      } catch (err) {
+        // If countDocuments fails, use timestamp as fallback
+        count = Date.now();
+      }
+      this.assembly_id = `ASM${String(count + 1).padStart(4, '0')}`;
+    }
+    next();
+  } catch (error) {
+    next(error);
   }
-  next();
 });
 
 // Instance method to increment build count

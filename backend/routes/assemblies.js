@@ -1,44 +1,27 @@
 const express = require('express');
 const {
-  validateAssembly,
   getAllAssemblies,
   getAssemblyById,
   createAssembly,
   updateAssembly,
   deleteAssembly,
-  addPartToAssembly,
-  removePartFromAssembly,
-  buildAssembly,
-  getAssemblyStatistics
+  getAssemblyDetails,
+  assembleProduct,
+  getProductAssemblyHistory
 } = require('../controllers/assemblyController');
 
 const router = express.Router();
 
-// GET all assemblies
+// Assembly CRUD routes
 router.get('/', getAllAssemblies);
-
-// GET assembly by ID
 router.get('/:id', getAssemblyById);
-
-// POST create new assembly
-router.post('/', validateAssembly, createAssembly);
-
-// PUT update assembly
-router.put('/:id', validateAssembly, updateAssembly);
-
-// DELETE assembly
+router.get('/:assemblyId/details', getAssemblyDetails);
+router.post('/', createAssembly);
+router.put('/:id', updateAssembly);
 router.delete('/:id', deleteAssembly);
 
-// POST add part to assembly
-router.post('/:id/parts', addPartToAssembly);
-
-// DELETE remove part from assembly
-router.delete('/:id/parts/:part_id', removePartFromAssembly);
-
-// POST build assembly
-router.post('/:id/build', buildAssembly);
-
-// GET assembly statistics
-router.get('/stats/summary', getAssemblyStatistics);
+// BOM-based assembly routes
+router.post('/assemble', assembleProduct);
+router.get('/product/:productId/history', getProductAssemblyHistory);
 
 module.exports = router;

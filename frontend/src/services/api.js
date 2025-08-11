@@ -79,6 +79,30 @@ export const assembliesAPI = {
   getStats: () => api.get('/assemblies/stats/summary'),
 };
 
+// Products API
+export const productsAPI = {
+  getAll: () => api.get('/products'),
+  getById: (id) => api.get(`/products/${id}`),
+  create: (data) => api.post('/products', data),
+  update: (id, data) => api.put(`/products/${id}`, data),
+  delete: (id) => api.delete(`/products/${id}`),
+  getAssemblable: () => api.get('/products/assemblable'),
+  getWithBOM: (id) => api.get(`/products/${id}/bom`),
+  updateStock: (id, data) => api.patch(`/products/${id}/stock`, data),
+};
+
+// BOM API
+export const bomAPI = {
+  getAll: () => api.get('/bom'),
+  getById: (id) => api.get(`/bom/${id}`),
+  create: (data) => api.post('/bom', data),
+  update: (id, data) => api.put(`/bom/${id}`, data),
+  delete: (id) => api.delete(`/bom/${id}`),
+  getProductBOM: (productId) => api.get(`/bom/product/${productId}`),
+  getProductsUsingPart: (partId) => api.get(`/bom/part/${partId}/products`),
+  checkProductBOM: (productId) => api.get(`/bom/product/${productId}/check`),
+};
+
 // Transactions API
 export const transactionsAPI = {
   getAll: () => api.get('/transactions'),
