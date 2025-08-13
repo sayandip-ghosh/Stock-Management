@@ -6,13 +6,13 @@ const Assembly = require('../models/Assembly');
 // Validation middleware
 const validateTransaction = [
   body('part_reference').isMongoId().withMessage('Valid part reference is required'),
-  body('transaction_type').isIn(['IN', 'OUT', 'ADJUSTMENT', 'ASSEMBLY_BUILD', 'ASSEMBLY_DISASSEMBLE']).withMessage('Invalid transaction type'),
+  body('transaction_type').isIn(['DELIVERY', 'WITHDRAWAL', 'ADJUSTMENT', 'ASSEMBLY_BUILD', 'ASSEMBLY_DISASSEMBLE']).withMessage('Invalid transaction type'),
   body('quantity').isFloat({ min: 0.01 }).withMessage('Valid quantity is required'),
   body('unit_price').optional().isFloat({ min: 0 }).withMessage('Unit price must be a non-negative number'),
   body('reference').optional().trim().isLength({ max: 100 }).withMessage('Reference must be less than 100 characters'),
   body('reference_type').optional().isIn(['INVOICE', 'ASSEMBLY_ID', 'PURCHASE_ORDER', 'SALES_ORDER', 'ADJUSTMENT', 'OTHER']).withMessage('Invalid reference type'),
   body('assembly_reference').optional().isMongoId().withMessage('Valid assembly reference is required'),
-
+  body('purchase_order_id').optional().isMongoId().withMessage('Valid purchase order ID is required'),
   body('notes').optional().trim().isLength({ max: 500 }).withMessage('Notes must be less than 500 characters'),
   body('created_by').optional().trim().isLength({ max: 100 }).withMessage('Created by must be less than 100 characters')
 ];
@@ -118,19 +118,27 @@ const createTransaction = async (req, res) => {
         return res.status(400).json({ error: 'Assembly not found' });
       }
     }
-    
 
+    // Check purchase order reference if provided
+    let purchaseOrderReference = null;
+    if (req.body.purchase_order_id) {
+      const PurchaseOrder = require('../models/PurchaseOrder');
+      purchaseOrderReference = await PurchaseOrder.findById(req.body.purchase_order_id);
+      if (!purchaseOrderReference) {
+        return res.status(400).json({ error: 'Purchase order not found' });
+      }
+    }
     
     // Get current stock for the part
     const previousStock = part.quantity_in_stock;
     let newStock = previousStock;
     
     // Update stock based on transaction type
-    if (req.body.transaction_type === 'IN') {
+    if (req.body.transaction_type === 'DELIVERY') {
       newStock = previousStock + req.body.quantity;
       part.quantity_in_stock = newStock;
       part.last_restocked = new Date();
-    } else if (req.body.transaction_type === 'OUT') {
+    } else if (req.body.transaction_type === 'WITHDRAWAL') {
       if (previousStock < req.body.quantity) {
         return res.status(400).json({ error: 'Insufficient stock' });
       }
@@ -141,26 +149,27 @@ const createTransaction = async (req, res) => {
     // as they are handled by their respective controllers
     
     // Save part if stock was updated
-    if (req.body.transaction_type === 'IN' || req.body.transaction_type === 'OUT') {
+    if (req.body.transaction_type === 'DELIVERY' || req.body.transaction_type === 'WITHDRAWAL') {
       await part.save();
     }
     
     // Create transaction record with automatic ID generation
-    const transaction = new StockTransaction({
+    const transactionData = {
       part_reference: req.body.part_reference,
       transaction_type: req.body.transaction_type,
       quantity: req.body.quantity,
       unit_price: req.body.unit_price || 0,
-      reference: req.body.reference,
-      reference_type: req.body.reference_type || 'OTHER',
+      reference: req.body.reference || (purchaseOrderReference ? purchaseOrderReference.order_number : 'Manual Entry'),
+      reference_type: req.body.reference_type || (purchaseOrderReference ? 'PURCHASE_ORDER' : 'OTHER'),
       assembly_reference: req.body.assembly_reference,
       notes: req.body.notes,
       created_by: req.body.created_by,
       previous_stock: previousStock,
       new_stock: newStock,
       date: new Date()
-    });
-    
+    };
+
+    const transaction = new StockTransaction(transactionData);
     await transaction.save();
     
     // Populate references for response

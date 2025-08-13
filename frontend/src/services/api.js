@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -112,6 +112,29 @@ export const transactionsAPI = {
   getRecent: () => api.get('/transactions/recent/list'),
   getByPart: (partId) => api.get(`/transactions/part/${partId}`),
   getStatistics: () => api.get('/transactions/stats/overview')
+};
+
+// Purchase Orders API
+export const purchaseOrdersAPI = {
+  getAll: (params = {}) => api.get('/purchase-orders', { params }),
+  getById: (id) => api.get(`/purchase-orders/${id}`),
+  create: (data) => api.post('/purchase-orders', data),
+  update: (id, data) => api.put(`/purchase-orders/${id}`, data),
+  delete: (id) => api.delete(`/purchase-orders/${id}`),
+  
+  // Receive parts for a purchase order
+  receiveItems: (id, data) => api.post(`/purchase-orders/${id}/receive`, data),
+  
+  // Get pending/partial orders
+  getPending: () => api.get('/purchase-orders/status/pending'),
+  getPartial: () => api.get('/purchase-orders/status/partial'),
+  
+  // Get purchase order items with receipt status
+  getItems: (id) => api.get(`/purchase-orders/${id}/items`),
+  
+  // Update individual item receipt
+  receiveItem: (orderId, itemId, data) => 
+    api.post(`/purchase-orders/${orderId}/items/${itemId}/receive`, data)
 };
 
 export default api;

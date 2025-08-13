@@ -13,6 +13,8 @@ const validateStockOperation = [
     .isFloat({ min: 0.01 }).withMessage('Valid quantity is required'),
   body('transaction_type')
     .isIn(['DELIVERY', 'WITHDRAWAL']).withMessage('Transaction type must be DELIVERY or WITHDRAWAL'),
+  body('purchase_order_id')
+    .optional().isMongoId().withMessage('Valid purchase order ID required'),
   body('notes')
     .optional().trim().isLength({ max: 500 }).withMessage('Notes must be less than 500 characters'),
   body('unit_price')
@@ -37,7 +39,17 @@ const performStockOperation = async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { part_id, quantity, transaction_type, notes, unit_price, reference } = req.body;
+    const { 
+      part_id, 
+      quantity, 
+      transaction_type, 
+      notes, 
+      unit_price, 
+      reference,
+      purchase_order_id,
+      operation_type 
+    } = req.body;
+
     console.log('Stock operation request:', {
       part_id,
       quantity,
@@ -45,8 +57,28 @@ const performStockOperation = async (req, res) => {
       transaction_type,
       notes,
       unit_price,
-      reference
+      reference,
+      purchase_order_id,
+      operation_type
     });
+
+    // Map operation_type to transaction_type for backward compatibility
+    let finalTransactionType = transaction_type;
+    if (operation_type) {
+      switch (operation_type) {
+        case 'addition':
+          finalTransactionType = 'DELIVERY';
+          break;
+        case 'removal':
+          finalTransactionType = 'WITHDRAWAL';
+          break;
+        case 'adjustment':
+          finalTransactionType = 'ADJUSTMENT';
+          break;
+        default:
+          finalTransactionType = transaction_type;
+      }
+    }
 
     // Ensure quantity is a positive number
     const numericQuantity = parseFloat(quantity);
@@ -76,10 +108,10 @@ const performStockOperation = async (req, res) => {
     let newStock = previousStock;
 
     // Adjust stock based on transaction type
-    if (transaction_type === 'DELIVERY') {
+    if (finalTransactionType === 'DELIVERY') {
       newStock += numericQuantity;
       part.last_restocked = new Date();
-    } else if (transaction_type === 'WITHDRAWAL') {
+    } else if (finalTransactionType === 'WITHDRAWAL') {
       if (previousStock < numericQuantity) {
         await session.abortTransaction();
         return res.status(400).json({
@@ -94,7 +126,7 @@ const performStockOperation = async (req, res) => {
     console.log('Stock calculation:', {
       previousStock,
       numericQuantity,
-      transaction_type,
+      transaction_type: finalTransactionType,
       newStock
     });
 
@@ -104,7 +136,7 @@ const performStockOperation = async (req, res) => {
       {
         $set: {
           quantity_in_stock: newStock,
-          ...(transaction_type === 'DELIVERY' && { last_restocked: new Date() })
+          ...(finalTransactionType === 'DELIVERY' && { last_restocked: new Date() })
         }
       },
       { session }
@@ -120,19 +152,31 @@ const performStockOperation = async (req, res) => {
 
     console.log('Part updated successfully');
 
-    // Build transaction data
+    // Build transaction data with purchase order reference
     const transactionData = {
       part_reference: part_id,
-      transaction_type,
+      transaction_type: finalTransactionType,
       quantity: numericQuantity,
       unit_price: parseFloat(unit_price) || 0,
       total_value: (parseFloat(unit_price) || 0) * numericQuantity,
-      reference: reference || `${transaction_type} - ${new Date().toLocaleDateString()}`,
-      notes: notes || `${transaction_type} operation`,
+      reference: reference || (purchase_order_id ? 'PO Reference' : `${finalTransactionType} - ${new Date().toLocaleDateString()}`),
+      reference_type: purchase_order_id ? 'PURCHASE_ORDER' : 'OTHER',
+      notes: notes || `${finalTransactionType} operation`,
       previous_stock: previousStock,
       new_stock: newStock,
       date: new Date()
     };
+
+    // Add purchase order reference if provided
+    if (purchase_order_id) {
+      // Verify purchase order exists
+      const PurchaseOrder = require('../models/PurchaseOrder');
+      const purchaseOrder = await PurchaseOrder.findById(purchase_order_id).session(session);
+      if (purchaseOrder) {
+        transactionData.reference = purchaseOrder.order_number;
+        transactionData.notes = `${transactionData.notes} - Linked to PO: ${purchaseOrder.order_number}`;
+      }
+    }
 
     if (!mongoose.Types.ObjectId.isValid(transactionData.part_reference)) {
       await session.abortTransaction();
@@ -156,20 +200,21 @@ const performStockOperation = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: `${transaction_type} successful`,
+      message: `${finalTransactionType} successful`,
       part: {
         part_id: part.part_id,
         name: part.name,
         previous_stock: previousStock,
         new_stock: newStock,
-        current_stock: part.quantity_in_stock
+        current_stock: newStock
       },
       transaction: {
         transaction_id: transaction.transaction_id,
         transaction_type: transaction.transaction_type,
         quantity: transaction.quantity,
         date: transaction.date,
-        notes: transaction.notes
+        notes: transaction.notes,
+        purchase_order_reference: purchase_order_id
       }
     });
 

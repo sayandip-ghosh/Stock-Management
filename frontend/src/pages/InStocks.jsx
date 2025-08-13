@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import StockOperationModal from '../components/StockOperationModal';
 import PartsModal from '../components/PartsModal';
-import { partsAPI, stockManagementAPI } from '../services/api';
+import PurchaseOrderModal from '../components/PurchaseOrderModal';
+import ReceiveItemsModal from '../components/ReceiveItemsModal';
+import { partsAPI, stockManagementAPI, purchaseOrdersAPI } from '../services/api';
 
 const InStocks = () => {
   const [parts, setParts] = useState([]);
@@ -14,9 +16,14 @@ const InStocks = () => {
   const [stockHistory, setStockHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [isPartsModalOpen, setIsPartsModalOpen] = useState(false);
+  const [isPurchaseOrderModalOpen, setIsPurchaseOrderModalOpen] = useState(false);
+  const [isReceiveItemsModalOpen, setIsReceiveItemsModalOpen] = useState(false);
+  const [selectedPurchaseOrder, setSelectedPurchaseOrder] = useState(null);
+  const [pendingOrders, setPendingOrders] = useState([]);
 
   useEffect(() => {
     fetchData();
+    fetchPendingOrders();
   }, []);
 
   const fetchData = async () => {
@@ -35,6 +42,15 @@ const InStocks = () => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPendingOrders = async () => {
+    try {
+      const response = await purchaseOrdersAPI.getPending();
+      setPendingOrders(response.data.purchase_orders || []);
+    } catch (error) {
+      console.error('Error fetching pending orders:', error);
     }
   };
 
@@ -74,6 +90,39 @@ const InStocks = () => {
       setIsPartsModalOpen(false);
     } catch (error) {
       console.error('Error adding new part:', error);
+      throw error;
+    }
+  };
+
+  const handleCreatePurchaseOrder = async (formData) => {
+    try {
+      await purchaseOrdersAPI.create(formData);
+      fetchPendingOrders();
+      setIsPurchaseOrderModalOpen(false);
+    } catch (error) {
+      console.error('Error creating purchase order:', error);
+      throw error;
+    }
+  };
+
+  const handleReceiveItems = async (receiptData) => {
+    try {
+      console.log('Calling receiveItems API with:', receiptData);
+      
+      await purchaseOrdersAPI.receiveItems(receiptData.purchase_order_id, {
+        received_date: receiptData.received_date,
+        items: receiptData.items,
+        notes: receiptData.notes,
+        receiver_name: receiptData.receiver_name || 'system',
+        carrier_info: receiptData.carrier_info || ''
+      });
+      
+      fetchData(); // Refresh parts data
+      fetchPendingOrders(); // Refresh pending orders
+      setIsReceiveItemsModalOpen(false);
+      setSelectedPurchaseOrder(null);
+    } catch (error) {
+      console.error('Error receiving items:', error);
       throw error;
     }
   };
@@ -213,12 +262,87 @@ const InStocks = () => {
           </div>
         </div>
 
+        {/* Pending Purchase Orders */}
+        {pendingOrders.length > 0 && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-medium text-yellow-800">Pending & Partial Purchase Orders</h3>
+              <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-sm font-medium">
+                {pendingOrders.length} orders
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {pendingOrders.slice(0, 3).map(order => {
+                const completionPercentage = order.completion_percentage || 0;
+                const statusColor = order.status === 'partial' ? 'text-orange-600' : 'text-gray-600';
+                const statusText = order.status === 'partial' ? 'Partial' : 'Pending';
+                
+                return (
+                  <div key={order._id} className="bg-white border border-yellow-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="font-medium text-gray-900">{order.order_number}</p>
+                        <p className="text-sm text-gray-600">{order.supplier_name}</p>
+                        <p className="text-xs text-gray-500">
+                          {order.items?.length || 0} items
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSelectedPurchaseOrder(order);
+                          setIsReceiveItemsModalOpen(true);
+                        }}
+                        className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                      >
+                        Receive
+                      </button>
+                    </div>
+                    
+                    {/* Progress bar and status */}
+                    <div className="mt-2">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className={`text-xs font-medium ${statusColor}`}>
+                          {statusText} - {completionPercentage}%
+                        </span>
+                        {order.status === 'partial' && (
+                          <span className="text-xs text-gray-500">
+                            Items remaining
+                          </span>
+                        )}
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-1.5">
+                        <div 
+                          className={`h-1.5 rounded-full transition-all duration-300 ${
+                            order.status === 'partial' ? 'bg-orange-500' : 'bg-gray-400'
+                          }`}
+                          style={{ width: `${completionPercentage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {pendingOrders.length > 3 && (
+              <p className="text-sm text-yellow-700 mt-2">
+                And {pendingOrders.length - 3} more orders awaiting delivery...
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Stock Table */}
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
                       <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Current Stock Levels</h2>
             <div className="flex items-center space-x-3">
+              <button 
+                onClick={() => setIsPurchaseOrderModalOpen(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Create Purchase Order
+              </button>
               <button 
                 onClick={() => setIsPartsModalOpen(true)}
                 className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
@@ -347,6 +471,24 @@ const InStocks = () => {
         isOpen={isPartsModalOpen}
         onClose={() => setIsPartsModalOpen(false)}
         onSave={handleAddNewPart}
+      />
+
+      {/* Purchase Order Modal */}
+      <PurchaseOrderModal
+        isOpen={isPurchaseOrderModalOpen}
+        onClose={() => setIsPurchaseOrderModalOpen(false)}
+        onSave={handleCreatePurchaseOrder}
+      />
+
+      {/* Receive Items Modal */}
+      <ReceiveItemsModal
+        isOpen={isReceiveItemsModalOpen}
+        onClose={() => {
+          setIsReceiveItemsModalOpen(false);
+          setSelectedPurchaseOrder(null);
+        }}
+        purchaseOrder={selectedPurchaseOrder}
+        onReceive={handleReceiveItems}
       />
 
       {/* Stock History Modal */}

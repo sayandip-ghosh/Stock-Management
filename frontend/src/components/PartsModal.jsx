@@ -16,31 +16,31 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-         if (part) {
-       setFormData({
-         name: part.name || '',
-         type: part.type || '',
-         quantity_in_stock: part.quantity_in_stock || 0,
-         min_stock_level: part.min_stock_level || 10,
-         cost_per_unit: part.cost_per_unit || 0,
-         category: part.category || '',
-         description: part.description || '',
-         location: part.location || '',
-         unit: part.unit || 'pcs'
-       });
-     } else {
-       setFormData({
-         name: '',
-         type: '',
-         quantity_in_stock: 0,
-         min_stock_level: 10,
-         cost_per_unit: 0,
-         category: '',
-         description: '',
-         location: '',
-         unit: 'pcs'
-       });
-     }
+    if (part) {
+      setFormData({
+        name: part.name || '',
+        type: part.type || '',
+        quantity_in_stock: part.quantity_in_stock || 0,
+        min_stock_level: part.min_stock_level || 10,
+        cost_per_unit: part.cost_per_unit || 0,
+        category: part.category || part.type || '', // Handle both category and type
+        description: part.description || '',
+        location: part.location || '',
+        unit: part.unit || 'pcs'
+      });
+    } else {
+      setFormData({
+        name: '',
+        type: '',
+        quantity_in_stock: 0,
+        min_stock_level: 10,
+        cost_per_unit: 0,
+        category: '',
+        description: '',
+        location: '',
+        unit: 'pcs'
+      });
+    }
     setErrors({});
   }, [part]);
 
@@ -60,17 +60,17 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
   const validateForm = () => {
     const newErrors = {};
     
-                 if (!formData.name.trim()) {
-               newErrors.name = 'Product name is required';
-             }
+    if (!formData.name.trim()) {
+      newErrors.name = 'Product name is required';
+    }
              
-             if (!formData.type.trim()) {
-               newErrors.type = 'Category/Type is required';
-             }
+    if (!formData.type.trim()) {
+      newErrors.type = 'Category/Type is required';
+    }
              
-             if (formData.quantity_in_stock < 0) {
-               newErrors.quantity_in_stock = 'Stock quantity cannot be negative';
-             }
+    if (formData.quantity_in_stock < 0) {
+      newErrors.quantity_in_stock = 'Stock quantity cannot be negative';
+    }
     
     if (formData.min_stock_level < 0) {
       newErrors.min_stock_level = 'Minimum stock level cannot be negative';
@@ -93,7 +93,13 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
     
     setLoading(true);
     try {
-      await onSave(formData);
+      // Map category to type for backend compatibility
+      const submitData = {
+        ...formData,
+        type: formData.type || formData.category,
+        category: formData.category || formData.type
+      };
+      await onSave(submitData);
       onClose();
     } catch (error) {
       console.error('Error saving part:', error);
@@ -159,48 +165,48 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
               {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
             </div>
 
-                         {/* Category/Type */}
-             <div>
-               <label className="block text-sm font-medium text-gray-700 mb-2">
-                 Category/Type *
-               </label>
-               <select
-                 name="type"
-                 value={formData.type}
-                 onChange={handleInputChange}
-                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                   errors.type ? 'border-red-500' : 'border-gray-300'
-                 }`}
-               >
-                 <option value="">Select a type</option>
-                 <option value="Mechanical">Mechanical</option>
-                 <option value="Electrical">Electrical</option>
-                 <option value="Electronic">Electronic</option>
-                 <option value="Plastic">Plastic</option>
-                 <option value="Metal">Metal</option>
-                 <option value="Other">Other</option>
-               </select>
-               {errors.type && <p className="text-red-500 text-sm mt-1">{errors.type}</p>}
-             </div>
+            {/* Category/Type */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Category/Type *
+              </label>
+              <select
+                name="type"
+                value={formData.type}
+                onChange={handleInputChange}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                  errors.type ? 'border-red-500' : 'border-gray-300'
+                }`}
+              >
+                <option value="">Select a type</option>
+                <option value="Mechanical">Mechanical</option>
+                <option value="Electrical">Electrical</option>
+                <option value="Electronic">Electronic</option>
+                <option value="Plastic">Plastic</option>
+                <option value="Metal">Metal</option>
+                <option value="Other">Other</option>
+              </select>
+              {errors.type && <p className="text-red-500 text-sm mt-1">{errors.type}</p>}
+            </div>
 
-                         {/* Stock Quantity */}
-             <div>
-               <label className="block text-sm font-medium text-gray-700 mb-2">
-                 Stock Quantity *
-               </label>
-               <input
-                 type="number"
-                 name="quantity_in_stock"
-                 value={formData.quantity_in_stock}
-                 onChange={handleInputChange}
-                 min="0"
-                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                   errors.quantity_in_stock ? 'border-red-500' : 'border-gray-300'
-                 }`}
-                 placeholder="0"
-               />
-               {errors.quantity_in_stock && <p className="text-red-500 text-sm mt-1">{errors.quantity_in_stock}</p>}
-             </div>
+            {/* Stock Quantity */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Stock Quantity *
+              </label>
+              <input
+                type="number"
+                name="quantity_in_stock"
+                value={formData.quantity_in_stock}
+                onChange={handleInputChange}
+                min="0"
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                  errors.quantity_in_stock ? 'border-red-500' : 'border-gray-300'
+                }`}
+                placeholder="0"
+              />
+              {errors.quantity_in_stock && <p className="text-red-500 text-sm mt-1">{errors.quantity_in_stock}</p>}
+            </div>
 
             {/* Min Stock Level */}
             <div>
@@ -291,19 +297,19 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
             />
           </div>
 
-                     {/* Status Display */}
-           <div className="bg-gray-50 p-4 rounded-lg">
-             <div className="flex items-center justify-between">
-               <span className="text-sm font-medium text-gray-700">Stock Status:</span>
-               <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                 formData.quantity_in_stock > formData.min_stock_level
-                   ? 'bg-green-100 text-green-800'
-                   : 'bg-red-100 text-red-800'
-               }`}>
-                 {formData.quantity_in_stock > formData.min_stock_level ? 'In Stock' : 'Low Stock'}
-               </span>
-             </div>
-           </div>
+          {/* Status Display */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-700">Stock Status:</span>
+              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                formData.quantity_in_stock > formData.min_stock_level
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-red-100 text-red-800'
+              }`}>
+                {formData.quantity_in_stock > formData.min_stock_level ? 'In Stock' : 'Low Stock'}
+              </span>
+            </div>
+          </div>
 
           {/* Action Buttons */}
           <div className="flex items-center justify-between pt-4 border-t border-gray-200">

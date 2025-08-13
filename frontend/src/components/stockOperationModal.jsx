@@ -1,40 +1,64 @@
 import React, { useState, useEffect } from 'react';
+import { purchaseOrdersAPI } from '../services/api';
 
 const StockOperationModal = ({ isOpen, onClose, part, parts = [], onSave }) => {
   const [formData, setFormData] = useState({
     part_id: '',
-    quantity: '',
-    transaction_type: 'DELIVERY',
+    operation_type: 'addition',
+    quantity: 0,
+    purchase_order_id: '',
     notes: '',
-    unit_price: '',
-    reference: ''
+    date: new Date().toISOString().split('T')[0]
   });
+  const [pendingOrders, setPendingOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchPendingOrders();
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (part) {
-      setFormData({
-        part_id: part._id,
-        quantity: '',
-        transaction_type: 'DELIVERY',
-        notes: '',
-        unit_price: part.cost_per_unit || '',
-        reference: ''
-      });
+      setFormData(prev => ({
+        ...prev,
+        part_id: part._id
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        part_id: ''
+      }));
     }
+    setErrors({});
   }, [part]);
+
+  const fetchPendingOrders = async () => {
+    try {
+      const response = await purchaseOrdersAPI.getPending();
+      setPendingOrders(response.data.purchase_orders || []);
+    } catch (error) {
+      console.error('Error fetching pending orders:', error);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.quantity || formData.quantity <= 0) {
-      alert('Please enter a valid quantity');
+    if (!validateForm()) {
       return;
     }
 
+    setLoading(true);
     try {
       await onSave(formData);
+      setLoading(false);
+      onClose();
     } catch (error) {
       console.error('Error saving stock operation:', error);
+      setLoading(false);
     }
   };
 
@@ -46,146 +70,177 @@ const StockOperationModal = ({ isOpen, onClose, part, parts = [], onSave }) => {
     }));
   };
 
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.part_id) {
+      newErrors.part_id = 'Part selection is required';
+    }
+    
+    if (!formData.quantity || formData.quantity <= 0) {
+      newErrors.quantity = 'Quantity must be greater than 0';
+    }
+    
+    if (formData.operation_type === 'addition' && !formData.purchase_order_id && !formData.notes) {
+      newErrors.reference = 'Either purchase order or notes explaining the addition is required';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div className="mt-3">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-900">
-              {part ? `Stock Operation - ${part.name}` : 'Stock Operation'}
-            </h3>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900">Stock Operation</h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-gray-400 hover:text-gray-600 text-2xl"
             >
-              <span className="sr-only">Close</span>
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              ×
             </button>
           </div>
-          
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {!part && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Select Part
-                </label>
-                <select
-                  name="part_id"
-                  value={formData.part_id}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  required
-                >
-                  <option value="">Choose a part...</option>
-                  {parts.map(part => (
-                    <option key={part._id} value={part._id}>
-                      {part.part_id} - {part.name} (Current: {part.quantity_in_stock} {part.unit})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Part Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Part *
+            </label>
+            <select
+              value={formData.part_id}
+              onChange={(e) => setFormData(prev => ({ ...prev, part_id: e.target.value }))}
+              disabled={!!part}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                errors.part_id ? 'border-red-500' : 'border-gray-300'
+              } ${part ? 'bg-gray-100' : ''}`}
+            >
+              <option value="">Select a part</option>
+              {parts.map(p => (
+                <option key={p._id} value={p._id}>
+                  {p.name} ({p.part_id}) - Current: {p.quantity_in_stock}
+                </option>
+              ))}
+            </select>
+            {errors.part_id && <p className="text-red-500 text-sm mt-1">{errors.part_id}</p>}
+          </div>
+
+          {/* Operation Type */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Operation Type *
+            </label>
+            <select
+              value={formData.operation_type}
+              onChange={(e) => setFormData(prev => ({ ...prev, operation_type: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="addition">Stock Addition</option>
+              <option value="removal">Stock Removal</option>
+              <option value="adjustment">Stock Adjustment</option>
+            </select>
+          </div>
+
+          {/* Purchase Order (for additions) */}
+          {formData.operation_type === 'addition' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Operation Type
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Purchase Order (Optional)
               </label>
               <select
-                name="transaction_type"
-                value={formData.transaction_type}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                required
+                value={formData.purchase_order_id}
+                onChange={(e) => setFormData(prev => ({ ...prev, purchase_order_id: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
               >
-                <option value="DELIVERY">Delivery (Add Stock)</option>
-                <option value="WITHDRAWAL">Withdrawal (Remove Stock)</option>
+                <option value="">Manual Addition (No PO)</option>
+                {pendingOrders.map(order => (
+                  <option key={order._id} value={order._id}>
+                    {order.order_number} - {order.supplier?.name}
+                  </option>
+                ))}
               </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Link this addition to a purchase order for better tracking
+              </p>
             </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Quantity
-              </label>
-              <input
-                type="number"
-                name="quantity"
-                value={formData.quantity}
-                onChange={handleChange}
-                min="0.01"
-                step="0.01"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                placeholder="Enter quantity"
-                required
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Unit Price (Optional)
-              </label>
-              <input
-                type="number"
-                name="unit_price"
-                value={formData.unit_price}
-                onChange={handleChange}
-                min="0"
-                step="0.01"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                placeholder="0.00"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Reference (Optional)
-              </label>
-              <input
-                type="text"
-                name="reference"
-                value={formData.reference}
-                onChange={handleChange}
-                maxLength="100"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                placeholder="Invoice #, PO #, etc."
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Notes (Optional)
-              </label>
-              <textarea
-                name="notes"
-                value={formData.notes}
-                onChange={handleChange}
-                maxLength="500"
-                rows="3"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                placeholder="Additional notes about this operation..."
-              />
-            </div>
-            
-            <div className="flex justify-end space-x-3 pt-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 border border-transparent rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
-              >
-                {formData.transaction_type === 'DELIVERY' ? 'Add Stock' : 'Remove Stock'}
-              </button>
-            </div>
-          </form>
-        </div>
+          )}
+
+          {/* Quantity */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Quantity *
+            </label>
+            <input
+              type="number"
+              value={formData.quantity}
+              onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))}
+              min="0"
+              step="1"
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                errors.quantity ? 'border-red-500' : 'border-gray-300'
+              }`}
+              placeholder="Enter quantity"
+            />
+            {errors.quantity && <p className="text-red-500 text-sm mt-1">{errors.quantity}</p>}
+          </div>
+
+          {/* Date */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Date *
+            </label>
+            <input
+              type="date"
+              value={formData.date}
+              onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Notes {formData.operation_type === 'addition' && !formData.purchase_order_id && '*'}
+            </label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+              rows="3"
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                errors.reference ? 'border-red-500' : 'border-gray-300'
+              }`}
+              placeholder={
+                formData.operation_type === 'addition' 
+                  ? 'Reason for stock addition (required if no purchase order selected)'
+                  : 'Reason for this operation'
+              }
+            />
+            {errors.reference && <p className="text-red-500 text-sm mt-1">{errors.reference}</p>}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+            >
+              {loading ? 'Processing...' : 'Execute Operation'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

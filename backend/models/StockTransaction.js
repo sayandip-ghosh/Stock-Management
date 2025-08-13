@@ -53,6 +53,10 @@ const stockTransactionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Assembly'
   },
+  purchase_order_reference: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'PurchaseOrder'
+  },
   notes: {
     type: String,
     trim: true,
@@ -87,6 +91,7 @@ stockTransactionSchema.index({ transaction_type: 1 });
 stockTransactionSchema.index({ date: -1 });
 stockTransactionSchema.index({ reference: 1 });
 stockTransactionSchema.index({ assembly_reference: 1 });
+stockTransactionSchema.index({ purchase_order_reference: 1 });
 
 // Compound indexes for common queries
 stockTransactionSchema.index({ part_reference: 1, date: -1 });

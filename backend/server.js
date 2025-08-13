@@ -16,6 +16,7 @@ const bomRoutes = require('./routes/bom');
 const assemblyRoutes = require('./routes/assemblies');
 const transactionRoutes = require('./routes/transactions');
 const stockManagementRoutes = require('./routes/stockManagement');
+const purchaseOrderRoutes = require('./routes/purchaseOrders');
 
 // Middleware
 app.use(helmet());
@@ -24,18 +25,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // CORS configuration
-app.use(cors({
-  origin: [
-    'http://localhost:3000', 
-    'http://localhost:5173', 
-    'http://localhost:5174',
-    'http://[::1]:5173',
-    'http://[::1]:5174',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174'
-  ], 
-  credentials: true
-}));
+app.use(cors());
 
 // Rate limiting (disabled for development)
 // const limiter = rateLimit({
@@ -61,6 +51,7 @@ app.use('/api/bom', bomRoutes);
 app.use('/api/assemblies', assemblyRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/stock-management', stockManagementRoutes);
+app.use('/api/purchase-orders', purchaseOrderRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -89,6 +80,14 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/stock_man
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log('Available API routes:');
+    console.log('- /api/parts');
+    console.log('- /api/products');
+    console.log('- /api/bom');
+    console.log('- /api/assemblies');
+    console.log('- /api/transactions');
+    console.log('- /api/stock-management');
+    console.log('- /api/purchase-orders');
   });
 })
 .catch((error) => {
