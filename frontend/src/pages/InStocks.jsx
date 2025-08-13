@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
-import StockOperationModal from '../components/StockOperationModal';
 import PartsModal from '../components/PartsModal';
 import PurchaseOrderModal from '../components/PurchaseOrderModal';
 import ReceiveItemsModal from '../components/ReceiveItemsModal';
+import WithdrawModal from '../components/WithdrawModal';
 import { partsAPI, stockManagementAPI, purchaseOrdersAPI } from '../services/api';
 
 const InStocks = () => {
@@ -11,15 +11,17 @@ const InStocks = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPart, setSelectedPart] = useState(null);
   const [stockHistory, setStockHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [isPartsModalOpen, setIsPartsModalOpen] = useState(false);
   const [isPurchaseOrderModalOpen, setIsPurchaseOrderModalOpen] = useState(false);
   const [isReceiveItemsModalOpen, setIsReceiveItemsModalOpen] = useState(false);
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [selectedPurchaseOrder, setSelectedPurchaseOrder] = useState(null);
   const [pendingOrders, setPendingOrders] = useState([]);
+  const [selectedPartForEdit, setSelectedPartForEdit] = useState(null);
+  const [isEditPartsModalOpen, setIsEditPartsModalOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -54,15 +56,30 @@ const InStocks = () => {
     }
   };
 
-  const handleStockOperation = async (formData) => {
+  const handleWithdrawItem = async (formData) => {
     try {
-      // This would call the new stock management API
-      await stockManagementAPI.performStockOperation(formData);
-      fetchData(); // Refresh the parts list
-      setIsModalOpen(false);
+      console.log('Sending withdraw request:', {
+        part_id: formData.part_id,
+        operation_type: 'removal',
+        quantity: formData.quantity,
+        notes: formData.notes,
+        date: formData.date
+      });
+
+      await stockManagementAPI.performStockOperation({
+        part_id: formData.part_id,
+        operation_type: 'removal',
+        quantity: formData.quantity,
+        notes: formData.notes,
+        date: formData.date,
+        created_by: 'system'
+      });
+      
+      fetchData(); // Refresh parts data
+      setIsWithdrawModalOpen(false);
       setSelectedPart(null);
     } catch (error) {
-      console.error('Error performing stock operation:', error);
+      console.error('Error withdrawing item:', error);
       throw error;
     }
   };
@@ -78,8 +95,9 @@ const InStocks = () => {
     }
   };
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
+  const handleCloseHistory = () => {
+    setShowHistory(false);
+    setStockHistory([]);
     setSelectedPart(null);
   };
 
@@ -91,6 +109,32 @@ const InStocks = () => {
     } catch (error) {
       console.error('Error adding new part:', error);
       throw error;
+    }
+  };
+
+  const handleEditPart = async (formData) => {
+    try {
+      await partsAPI.update(selectedPartForEdit._id, formData);
+      fetchData(); // Refresh the parts list
+      setIsEditPartsModalOpen(false);
+      setSelectedPartForEdit(null);
+    } catch (error) {
+      console.error('Error updating part:', error);
+      throw error;
+    }
+  };
+
+  const handleDeletePart = async (partId) => {
+    if (window.confirm('Are you sure you want to delete this part?')) {
+      try {
+        await partsAPI.delete(partId);
+        fetchData(); // Refresh the parts list
+        setIsEditPartsModalOpen(false);
+        setSelectedPartForEdit(null);
+      } catch (error) {
+        console.error('Error deleting part:', error);
+        throw error;
+      }
     }
   };
 
@@ -125,12 +169,6 @@ const InStocks = () => {
       console.error('Error receiving items:', error);
       throw error;
     }
-  };
-
-  const handleCloseHistory = () => {
-    setShowHistory(false);
-    setStockHistory([]);
-    setSelectedPart(null);
   };
 
   const filteredParts = parts.filter(part =>
@@ -334,29 +372,23 @@ const InStocks = () => {
         {/* Stock Table */}
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
-                      <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Current Stock Levels</h2>
-            <div className="flex items-center space-x-3">
-              <button 
-                onClick={() => setIsPurchaseOrderModalOpen(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Create Purchase Order
-              </button>
-              <button 
-                onClick={() => setIsPartsModalOpen(true)}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-              >
-                Add New Part
-              </button>
-              <button 
-                onClick={() => setIsModalOpen(true)}
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                Stock Operation
-              </button>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Current Stock Levels</h2>
+              <div className="flex items-center space-x-3">
+                <button 
+                  onClick={() => setIsPurchaseOrderModalOpen(true)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Create Purchase Order
+                </button>
+                <button 
+                  onClick={() => setIsPartsModalOpen(true)}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Add New Part
+                </button>
+              </div>
             </div>
-          </div>
           </div>
           
           <div className="overflow-x-auto">
@@ -402,7 +434,15 @@ const InStocks = () => {
                             <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center mr-3">
                               <span className="text-gray-600 text-xs">📦</span>
                             </div>
-                            <span className="text-sm text-gray-900">{part.name || 'Unnamed Part'}</span>
+                            <button
+                              onClick={() => {
+                                setSelectedPartForEdit(part);
+                                setIsEditPartsModalOpen(true);
+                              }}
+                              className="text-sm text-gray-900 hover:text-purple-600 hover:underline text-left"
+                            >
+                              {part.name || 'Unnamed Part'}
+                            </button>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{part.category || 'Uncategorized'}</td>
@@ -422,15 +462,17 @@ const InStocks = () => {
                             >
                               History
                             </button>
-                            <button 
-                              onClick={() => {
-                                setSelectedPart(part);
-                                setIsModalOpen(true);
-                              }}
-                              className="text-green-600 hover:text-green-800 text-sm font-medium"
-                            >
-                              Operation
-                            </button>
+                            {quantity > 0 && (
+                              <button 
+                                onClick={() => {
+                                  setSelectedPart(part);
+                                  setIsWithdrawModalOpen(true);
+                                }}
+                                className="text-red-600 hover:text-red-800 text-sm font-medium"
+                              >
+                                Withdraw
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -457,20 +499,23 @@ const InStocks = () => {
         </div>
       </div>
 
-      {/* Stock Operation Modal */}
-      <StockOperationModal
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        part={selectedPart}
-        parts={parts}
-        onSave={handleStockOperation}
-      />
-
       {/* Add New Part Modal */}
       <PartsModal
         isOpen={isPartsModalOpen}
         onClose={() => setIsPartsModalOpen(false)}
         onSave={handleAddNewPart}
+      />
+
+      {/* Edit Part Modal */}
+      <PartsModal
+        isOpen={isEditPartsModalOpen}
+        onClose={() => {
+          setIsEditPartsModalOpen(false);
+          setSelectedPartForEdit(null);
+        }}
+        part={selectedPartForEdit}
+        onSave={handleEditPart}
+        onDelete={handleDeletePart}
       />
 
       {/* Purchase Order Modal */}
@@ -489,6 +534,17 @@ const InStocks = () => {
         }}
         purchaseOrder={selectedPurchaseOrder}
         onReceive={handleReceiveItems}
+      />
+
+      {/* Withdraw Modal */}
+      <WithdrawModal
+        isOpen={isWithdrawModalOpen}
+        onClose={() => {
+          setIsWithdrawModalOpen(false);
+          setSelectedPart(null);
+        }}
+        part={selectedPart}
+        onWithdraw={handleWithdrawItem}
       />
 
       {/* Stock History Modal */}

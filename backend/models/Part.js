@@ -3,7 +3,6 @@ const mongoose = require('mongoose');
 const partSchema = new mongoose.Schema({
   part_id: {
     type: String,
-    required: true,
     unique: true,
     trim: true,
     uppercase: true
@@ -77,21 +76,54 @@ const partSchema = new mongoose.Schema({
 partSchema.pre('save', async function(next) {
   if (!this.part_id) {
     try {
-      const lastPart = await this.constructor.findOne({}, {}, { sort: { 'part_id': -1 } });
-      let nextNumber = 1;
+      // Get the count of all parts to determine the next number
+      const count = await this.constructor.countDocuments({});
+      let nextNumber = count + 1;
+      
+      // Try to find the highest existing part ID
+      const lastPart = await this.constructor.findOne(
+        { part_id: { $exists: true, $ne: null } },
+        { part_id: 1 },
+        { sort: { createdAt: -1 } }
+      );
       
       if (lastPart && lastPart.part_id) {
-        const match = lastPart.part_id.match(/PART(\d+)/);
+        const match = lastPart.part_id.match(/P(\d+)/);
         if (match) {
-          nextNumber = parseInt(match[1]) + 1;
+          const lastNumber = parseInt(match[1]);
+          nextNumber = Math.max(nextNumber, lastNumber + 1);
         }
       }
       
-      this.part_id = `PART${String(nextNumber).padStart(6, '0')}`;
+      // Generate and check for uniqueness
+      let partId;
+      let attempts = 0;
+      
+      do {
+        partId = `P${String(nextNumber + attempts).padStart(6, '0')}`;
+        const existingPart = await this.constructor.findOne({ part_id: partId });
+        
+        if (!existingPart) {
+          this.part_id = partId;
+          console.log('Generated part ID:', this.part_id);
+          break;
+        }
+        
+        attempts++;
+      } while (attempts < 100);
+      
+      // Fallback if all attempts failed
+      if (!this.part_id) {
+        this.part_id = `P${Date.now().toString().slice(-6)}`;
+        console.log('Generated fallback part ID:', this.part_id);
+      }
+      
     } catch (error) {
-      this.part_id = `PART${Date.now().toString().slice(-6)}`;
+      console.error('Error generating part ID:', error);
+      this.part_id = `P${Date.now().toString().slice(-6)}`;
     }
   }
+  
   next();
 });
 

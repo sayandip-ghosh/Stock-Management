@@ -12,7 +12,11 @@ const validateStockOperation = [
   body('quantity')
     .isFloat({ min: 0.01 }).withMessage('Valid quantity is required'),
   body('transaction_type')
+    .optional()
     .isIn(['DELIVERY', 'WITHDRAWAL']).withMessage('Transaction type must be DELIVERY or WITHDRAWAL'),
+  body('operation_type')
+    .optional()
+    .isIn(['addition', 'removal', 'adjustment']).withMessage('Operation type must be addition, removal, or adjustment'),
   body('purchase_order_id')
     .optional().isMongoId().withMessage('Valid purchase order ID required'),
   body('notes')
@@ -20,7 +24,14 @@ const validateStockOperation = [
   body('unit_price')
     .optional().isFloat({ min: 0 }).withMessage('Unit price must be a non-negative number'),
   body('reference')
-    .optional().trim().isLength({ max: 100 }).withMessage('Reference must be less than 100 characters')
+    .optional().trim().isLength({ max: 100 }).withMessage('Reference must be less than 100 characters'),
+  // Custom validation to ensure either transaction_type or operation_type is provided
+  body().custom((value) => {
+    if (!value.transaction_type && !value.operation_type) {
+      throw new Error('Either transaction_type or operation_type is required');
+    }
+    return true;
+  })
 ];
 
 /**
@@ -36,6 +47,7 @@ const performStockOperation = async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       console.log('Validation errors:', errors.array());
+      await session.abortTransaction();
       return res.status(400).json({ errors: errors.array() });
     }
 
@@ -55,11 +67,11 @@ const performStockOperation = async (req, res) => {
       quantity,
       quantityType: typeof quantity,
       transaction_type,
+      operation_type,
       notes,
       unit_price,
       reference,
-      purchase_order_id,
-      operation_type
+      purchase_order_id
     });
 
     // Map operation_type to transaction_type for backward compatibility
@@ -76,9 +88,11 @@ const performStockOperation = async (req, res) => {
           finalTransactionType = 'ADJUSTMENT';
           break;
         default:
-          finalTransactionType = transaction_type;
+          finalTransactionType = transaction_type || 'ADJUSTMENT';
       }
     }
+
+    console.log('Final transaction type:', finalTransactionType);
 
     // Ensure quantity is a positive number
     const numericQuantity = parseFloat(quantity);
@@ -152,20 +166,27 @@ const performStockOperation = async (req, res) => {
 
     console.log('Part updated successfully');
 
-    // Build transaction data with purchase order reference
+    // Build transaction data with detailed notes for withdrawals
     const transactionData = {
       part_reference: part_id,
       transaction_type: finalTransactionType,
       quantity: numericQuantity,
       unit_price: parseFloat(unit_price) || 0,
       total_value: (parseFloat(unit_price) || 0) * numericQuantity,
-      reference: reference || (purchase_order_id ? 'PO Reference' : `${finalTransactionType} - ${new Date().toLocaleDateString()}`),
+      reference: reference || `${finalTransactionType} - ${new Date().toLocaleDateString()}`,
       reference_type: purchase_order_id ? 'PURCHASE_ORDER' : 'OTHER',
       notes: notes || `${finalTransactionType} operation`,
       previous_stock: previousStock,
       new_stock: newStock,
-      date: new Date()
+      date: new Date(req.body.date || new Date()),
+      created_by: req.body.created_by || 'system'
     };
+
+    // Enhance notes for withdrawal transactions
+    if (finalTransactionType === 'WITHDRAWAL' && notes) {
+      transactionData.notes = `Withdrawal: ${notes}`;
+      transactionData.reference = `Manual Withdrawal - ${new Date().toLocaleDateString()}`;
+    }
 
     // Add purchase order reference if provided
     if (purchase_order_id) {
@@ -214,7 +235,7 @@ const performStockOperation = async (req, res) => {
         quantity: transaction.quantity,
         date: transaction.date,
         notes: transaction.notes,
-        purchase_order_reference: purchase_order_id
+        reference: transaction.reference
       }
     });
 
