@@ -230,6 +230,7 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
                   className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
                     errors.type ? 'border-red-500' : 'border-gray-300'
                   }`}
+                  style={{ maxHeight: '200px', overflowY: 'auto' }}
                 >
                   <option value="">Select a type</option>
                   <option value="Mechanical">Mechanical</option>
@@ -325,6 +326,7 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
                   value={formData.unit}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  style={{ maxHeight: '200px', overflowY: 'auto' }}
                 >
                   <option value="pcs">Pieces</option>
                   <option value="kg">Kilograms</option>

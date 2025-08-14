@@ -11,6 +11,11 @@ const AssemblyBOMModal = ({ isOpen, onClose, assembly, onUpdate }) => {
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  
+  // Add search state
+  const [partSearchTerm, setPartSearchTerm] = useState('');
+  const [isPartDropdownOpen, setIsPartDropdownOpen] = useState(false);
+  const [selectedPartName, setSelectedPartName] = useState('');
 
   useEffect(() => {
     if (isOpen && assembly) {
@@ -22,8 +27,9 @@ const AssemblyBOMModal = ({ isOpen, onClose, assembly, onUpdate }) => {
 
   const fetchParts = async () => {
     try {
-      const response = await partsAPI.getAll();
-      console.log('Fetched parts:', response.data.parts?.length);
+      // Fetch all parts without pagination for dropdown
+      const response = await partsAPI.getAll({ limit: 1000 });
+      console.log('Fetched parts for BOM modal:', response.data.parts?.length);
       setParts(response.data.parts || []);
     } catch (error) {
       console.error('Error fetching parts:', error);
@@ -78,7 +84,7 @@ const AssemblyBOMModal = ({ isOpen, onClose, assembly, onUpdate }) => {
       
       console.log('BOM item added successfully:', response.data);
       setBomItems(response.data.bom_items || []);
-      setNewBomItem({ part_id: '', quantity_required: 1, notes: '' });
+      resetPartSelection(); // Use the new reset function
       setErrors({});
       
       // Refresh parts data to get latest stock levels
@@ -148,6 +154,39 @@ const AssemblyBOMModal = ({ isOpen, onClose, assembly, onUpdate }) => {
     };
   };
 
+  // Filter parts based on search term
+  const filteredParts = parts.filter(part => 
+    part.name?.toLowerCase().includes(partSearchTerm.toLowerCase()) ||
+    part.part_id?.toLowerCase().includes(partSearchTerm.toLowerCase()) ||
+    part.type?.toLowerCase().includes(partSearchTerm.toLowerCase())
+  );
+
+  const handlePartSelect = (part) => {
+    setNewBomItem(prev => ({ ...prev, part_id: part._id }));
+    setSelectedPartName(`${part.name} (${part.part_id})`);
+    setPartSearchTerm('');
+    setIsPartDropdownOpen(false);
+  };
+
+  const handlePartSearchChange = (e) => {
+    const value = e.target.value;
+    setPartSearchTerm(value);
+    setIsPartDropdownOpen(value.length > 0);
+    
+    // Clear selection if search is cleared
+    if (value === '') {
+      setNewBomItem(prev => ({ ...prev, part_id: '' }));
+      setSelectedPartName('');
+    }
+  };
+
+  const resetPartSelection = () => {
+    setNewBomItem(prev => ({ ...prev, part_id: '', quantity_required: 1, notes: '' }));
+    setSelectedPartName('');
+    setPartSearchTerm('');
+    setIsPartDropdownOpen(false);
+  };
+
   if (!isOpen || !assembly) return null;
 
   return (
@@ -175,22 +214,124 @@ const AssemblyBOMModal = ({ isOpen, onClose, assembly, onUpdate }) => {
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Add BOM Item</h3>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="md:col-span-2">
+              <div className="md:col-span-2 relative">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Part *
                 </label>
-                <select
-                  value={newBomItem.part_id}
-                  onChange={(e) => setNewBomItem(prev => ({ ...prev, part_id: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                >
-                  <option value="">Select a part</option>
-                  {parts.map(part => (
-                    <option key={part._id} value={part._id}>
-                      {part.name} ({part.part_id}) - Stock: {part.quantity_in_stock}
-                    </option>
-                  ))}
-                </select>
+                
+                {/* Searchable Part Selector */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={selectedPartName || partSearchTerm}
+                    onChange={handlePartSearchChange}
+                    onFocus={() => {
+                      if (!selectedPartName) {
+                        setIsPartDropdownOpen(true);
+                      }
+                    }}
+                    placeholder="Search parts by name, ID, or type..."
+                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  
+                  {/* Clear button */}
+                  {(selectedPartName || partSearchTerm) && (
+                    <button
+                      type="button"
+                      onClick={resetPartSelection}
+                      className="absolute right-8 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      ×
+                    </button>
+                  )}
+                  
+                  {/* Dropdown arrow */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedPartName) {
+                        resetPartSelection();
+                      } else {
+                        setIsPartDropdownOpen(!isPartDropdownOpen);
+                        setPartSearchTerm('');
+                      }
+                    }}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {/* Dropdown list */}
+                  {isPartDropdownOpen && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {filteredParts.length > 0 ? (
+                        <>
+                          {filteredParts.map(part => (
+                            <button
+                              key={part._id}
+                              type="button"
+                              onClick={() => handlePartSelect(part)}
+                              className="w-full px-3 py-2 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none border-b border-gray-100 last:border-b-0"
+                            >
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <div className="font-medium text-gray-900">
+                                    {part.name}
+                                  </div>
+                                  <div className="text-sm text-gray-500">
+                                    {part.part_id} | {part.type}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className={`text-sm font-medium ${
+                                    part.quantity_in_stock <= 0 ? 'text-red-600' :
+                                    part.quantity_in_stock <= (part.min_stock_level || 0) ? 'text-yellow-600' :
+                                    'text-green-600'
+                                  }`}>
+                                    {part.quantity_in_stock} {part.unit}
+                                  </div>
+                                  <div className="text-xs text-gray-400">
+                                    ${(part.cost_per_unit || 0).toFixed(2)}
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </>
+                      ) : (
+                        <div className="px-3 py-2 text-gray-500 text-center">
+                          {partSearchTerm ? `No parts found matching "${partSearchTerm}"` : 'No parts available'}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Show selected part details */}
+                {newBomItem.part_id && (
+                  <div className="mt-2 p-2 bg-blue-50 rounded border">
+                    {(() => {
+                      const selectedPart = parts.find(p => p._id === newBomItem.part_id);
+                      return selectedPart ? (
+                        <div className="text-sm">
+                          <div className="font-medium text-blue-900">{selectedPart.name}</div>
+                          <div className="text-blue-700">
+                            Stock: <span className={`font-medium ${
+                              selectedPart.quantity_in_stock <= 0 ? 'text-red-600' :
+                              selectedPart.quantity_in_stock <= (selectedPart.min_stock_level || 0) ? 'text-orange-600' :
+                              'text-green-600'
+                            }`}>
+                              {selectedPart.quantity_in_stock} {selectedPart.unit}
+                            </span> | 
+                            Cost: ${(selectedPart.cost_per_unit || 0).toFixed(2)} per {selectedPart.unit}
+                          </div>
+                        </div>
+                      ) : null;
+                    })()}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -210,8 +351,8 @@ const AssemblyBOMModal = ({ isOpen, onClose, assembly, onUpdate }) => {
               <div className="flex items-end">
                 <button
                   onClick={addBOMItem}
-                  disabled={loading}
-                  className="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                  disabled={loading || !newBomItem.part_id}
+                  className="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Adding...' : 'Add Item'}
                 </button>

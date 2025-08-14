@@ -32,16 +32,17 @@ const InStocks = () => {
     try {
       setLoading(true);
       setError(null);
+
+      // Use high limit to get all parts for proper counting and dropdowns
+      const response = await partsAPI.getAll({ limit: 1000 });
       
-      const response = await partsAPI.getAll();
+      console.log('Fetched parts response:', response.data);
+      console.log('Total parts count:', response.data.parts?.length);
+      
       setParts(response.data.parts || []);
     } catch (err) {
-      console.error('Error fetching data:', err);
-      if (err.code === 'ERR_NETWORK' || err.message.includes('Network Error')) {
-        setError('Unable to connect to server. Please check your connection.');
-      } else {
-        setError('Failed to load data from server.');
-      }
+      console.error('Error fetching parts:', err);
+      setError('Failed to load parts from server.');
     } finally {
       setLoading(false);
     }

@@ -22,13 +22,22 @@ const validatePart = [
 // Get all parts with pagination and search
 const getAllParts = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search, type, category, sortBy = 'name', sortOrder = 'asc' } = req.query;
+    const { 
+      page = 1, 
+      limit = 1000, // Increase default limit to handle "get all" requests
+      search, 
+      type, 
+      category, 
+      sortBy = 'name', 
+      sortOrder = 'asc' 
+    } = req.query;
     
     // Build query
     const query = { is_active: true };
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
+        { part_id: { $regex: search, $options: 'i' } },
         { description: { $regex: search, $options: 'i' } }
       ];
     }
@@ -39,23 +48,37 @@ const getAllParts = async (req, res) => {
     const sort = {};
     sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
     
-    // Execute query with pagination
-    const parts = await Part.find(query)
-      .sort(sort)
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
-      .exec();
+    // Handle special case for getting all parts (when limit is very high)
+    const requestedLimit = parseInt(limit);
+    const isGetAllRequest = requestedLimit >= 1000;
     
-    // Get total count for pagination
-    const total = await Part.countDocuments(query);
+    let parts;
+    let total;
+    
+    if (isGetAllRequest) {
+      // For "get all" requests, don't apply pagination
+      parts = await Part.find(query).sort(sort).exec();
+      total = parts.length;
+    } else {
+      // For regular paginated requests
+      parts = await Part.find(query)
+        .sort(sort)
+        .limit(requestedLimit)
+        .skip((page - 1) * requestedLimit)
+        .exec();
+      
+      total = await Part.countDocuments(query);
+    }
+    
+    console.log(`Fetched ${parts.length} parts (total in DB: ${total})`);
     
     res.json({
       parts,
-      totalPages: Math.ceil(total / limit),
-      currentPage: page,
+      totalPages: isGetAllRequest ? 1 : Math.ceil(total / requestedLimit),
+      currentPage: parseInt(page),
       total,
-      hasNext: page * limit < total,
-      hasPrev: page > 1
+      hasNext: !isGetAllRequest && (page * requestedLimit < total),
+      hasPrev: !isGetAllRequest && (page > 1)
     });
   } catch (error) {
     console.error('Error fetching parts:', error);

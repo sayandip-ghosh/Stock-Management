@@ -56,7 +56,15 @@ export const suppliersAPI = {
 
 // Parts API
 export const partsAPI = {
-  getAll: () => api.get('/parts'),
+  getAll: (params = {}) => {
+    // For getting all parts without pagination (used in dropdowns and counts)
+    const searchParams = new URLSearchParams({
+      limit: '1000', // Set a high limit to get all parts
+      page: '1',
+      ...params
+    });
+    return api.get(`/parts?${searchParams}`);
+  },
   getById: (id) => api.get(`/parts/${id}`),
   create: (data) => api.post('/parts', data),
   update: (id, data) => api.put(`/parts/${id}`, data),
@@ -64,6 +72,8 @@ export const partsAPI = {
   getLowStock: () => api.get('/parts/alerts/low-stock'),
   updateStock: (id, data) => api.post(`/parts/${id}/stock`, data),
   getStats: () => api.get('/parts/stats/summary'),
+  // Add a paginated version for when we actually need pagination
+  getPaginated: (params = {}) => api.get('/parts', { params })
 };
 
 // Assemblies API

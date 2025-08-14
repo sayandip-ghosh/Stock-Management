@@ -15,6 +15,12 @@ const PurchaseOrderModal = ({ isOpen, onClose, onSave, purchaseOrder = null }) =
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
+  // Add search state for part selection
+  const [partSearchTerm, setPartSearchTerm] = useState('');
+  const [isPartDropdownOpen, setIsPartDropdownOpen] = useState(false);
+  const [selectedPartName, setSelectedPartName] = useState('');
+  const [editingItemIndex, setEditingItemIndex] = useState(-1);
+
   useEffect(() => {
     if (isOpen) {
       fetchParts();
@@ -47,24 +53,83 @@ const PurchaseOrderModal = ({ isOpen, onClose, onSave, purchaseOrder = null }) =
 
   const fetchParts = async () => {
     try {
-      const response = await partsAPI.getAll();
-      // Get all parts without pagination
+      const response = await partsAPI.getAll({ limit: 1000 });
       setParts(response.data.parts || []);
+      console.log('Fetched parts for PO modal:', response.data.parts?.length);
     } catch (error) {
       console.error('Error fetching parts:', error);
     }
   };
 
-  const addItem = () => {
+  // Filter parts based on search term
+  const filteredParts = parts.filter(part => 
+    part.name?.toLowerCase().includes(partSearchTerm.toLowerCase()) ||
+    part.part_id?.toLowerCase().includes(partSearchTerm.toLowerCase()) ||
+    part.type?.toLowerCase().includes(partSearchTerm.toLowerCase()) ||
+    part.category?.toLowerCase().includes(partSearchTerm.toLowerCase())
+  );
+
+  const handlePartSelect = (part) => {
+    const newItem = {
+      part_id: part._id,
+      part_name: part.name,
+      part_number: part.part_id,
+      unit: part.unit,
+      quantity_ordered: 1,
+      unit_cost: part.cost_per_unit || 0,
+      total_cost: part.cost_per_unit || 0,
+      notes: ''
+    };
+    
+    // Check if part already exists in items
+    const existingItemIndex = formData.items.findIndex(item => item.part_id === part._id);
+    if (existingItemIndex >= 0) {
+      alert('This part is already added to the purchase order');
+      resetPartSelection();
+      return;
+    }
+    
     setFormData(prev => ({
       ...prev,
-      items: [...prev.items, {
-        part_id: '',
-        quantity_ordered: 0,
-        quantity_received: 0,
-        unit_cost: 0,
-        notes: ''
-      }]
+      items: [...prev.items, newItem]
+    }));
+    
+    resetPartSelection();
+  };
+
+  const handlePartSearchChange = (e) => {
+    const value = e.target.value;
+    setPartSearchTerm(value);
+    setIsPartDropdownOpen(value.length > 0);
+    
+    // Clear selection if search is cleared
+    if (value === '') {
+      setSelectedPartName('');
+    }
+  };
+
+  const resetPartSelection = () => {
+    setSelectedPartName('');
+    setPartSearchTerm('');
+    setIsPartDropdownOpen(false);
+  };
+
+  const addItem = () => {
+    // This function is now replaced by handlePartSelect
+    // But we'll keep it for backward compatibility
+    const newItem = {
+      part_id: '',
+      part_name: '',
+      part_number: '',
+      unit: 'pcs',
+      quantity_ordered: 1,
+      unit_cost: 0,
+      total_cost: 0,
+      notes: ''
+    };
+    setFormData(prev => ({
+      ...prev,
+      items: [...prev.items, newItem]
     }));
   };
 
@@ -76,12 +141,15 @@ const PurchaseOrderModal = ({ isOpen, onClose, onSave, purchaseOrder = null }) =
   };
 
   const updateItem = (index, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.map((item, i) => 
-        i === index ? { ...item, [field]: value } : item
-      )
-    }));
+    const items = [...formData.items];
+    items[index][field] = value;
+    
+    // Recalculate total cost when quantity or unit cost changes
+    if (field === 'quantity_ordered' || field === 'unit_cost') {
+      items[index].total_cost = (items[index].quantity_ordered || 0) * (items[index].unit_cost || 0);
+    }
+    
+    setFormData(prev => ({ ...prev, items }));
   };
 
   const validateForm = () => {
@@ -161,10 +229,12 @@ const PurchaseOrderModal = ({ isOpen, onClose, onSave, purchaseOrder = null }) =
 
   if (!isOpen) return null;
 
+  const totalAmount = formData.items.reduce((sum, item) => sum + (item.total_cost || 0), 0);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="px-6 py-4 border-b border-gray-200">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-900">
               {purchaseOrder ? 'Edit Purchase Order' : 'Create Purchase Order'}
@@ -178,292 +248,280 @@ const PurchaseOrderModal = ({ isOpen, onClose, onSave, purchaseOrder = null }) =
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Order Header */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Supplier Name *
-              </label>
-              <input
-                type="text"
-                value={formData.supplier_name}
-                onChange={(e) => setFormData(prev => ({ ...prev, supplier_name: e.target.value }))}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                  errors.supplier_name ? 'border-red-500' : 'border-gray-300'
-                }`}
-                placeholder="Enter supplier name"
-              />
-              {errors.supplier_name && <p className="text-red-500 text-sm mt-1">{errors.supplier_name}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Supplier Contact
-              </label>
-              <input
-                type="text"
-                value={formData.supplier_contact}
-                onChange={(e) => setFormData(prev => ({ ...prev, supplier_contact: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                placeholder="Phone, email, or contact person"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Order Date *
-              </label>
-              <input
-                type="date"
-                value={formData.order_date}
-                onChange={(e) => setFormData(prev => ({ ...prev, order_date: e.target.value }))}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                  errors.order_date ? 'border-red-500' : 'border-gray-300'
-                }`}
-              />
-              {errors.order_date && <p className="text-red-500 text-sm mt-1">{errors.order_date}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Expected Delivery Date
-              </label>
-              <input
-                type="date"
-                value={formData.expected_delivery_date}
-                onChange={(e) => setFormData(prev => ({ ...prev, expected_delivery_date: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-
-            {purchaseOrder && (
-              <div className="md:col-span-2">
+        <div className="flex-1 overflow-y-auto">
+          <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            {/* Supplier Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Status
+                  Supplier Name *
                 </label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                >
-                  <option value="pending">Pending</option>
-                  <option value="partial">Partially Received</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
+                <input
+                  type="text"
+                  value={formData.supplier_name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, supplier_name: e.target.value }))}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                    errors.supplier_name ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter supplier name"
+                  required
+                />
+                {errors.supplier_name && <p className="text-red-500 text-sm mt-1">{errors.supplier_name}</p>}
               </div>
-            )}
-          </div>
 
-          {/* Notes */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Notes
-            </label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-              rows="3"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-              placeholder="Order notes or special instructions"
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Supplier Contact
+                </label>
+                <input
+                  type="text"
+                  value={formData.supplier_contact}
+                  onChange={(e) => setFormData(prev => ({ ...prev, supplier_contact: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="Phone, email, or contact person"
+                />
+              </div>
 
-          {/* Order Items */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Order Items</h3>
-              <button
-                type="button"
-                onClick={addItem}
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
-              >
-                Add Item
-              </button>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Order Date *
+                </label>
+                <input
+                  type="date"
+                  value={formData.order_date}
+                  onChange={(e) => setFormData(prev => ({ ...prev, order_date: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Expected Delivery Date
+                </label>
+                <input
+                  type="date"
+                  value={formData.expected_delivery_date}
+                  onChange={(e) => setFormData(prev => ({ ...prev, expected_delivery_date: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
             </div>
-            
-            {errors.items && <p className="text-red-500 text-sm mb-4">{errors.items}</p>}
 
-            <div className="space-y-4">
-              {formData.items.map((item, index) => {
-                // Find the selected part to display additional info
-                const selectedPart = parts.find(part => part._id === item.part_id);
+            {/* Add Parts Section */}
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Add Parts</h3>
+              
+              <div className="relative">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Search and Select Part
+                </label>
                 
-                return (
-                  <div key={index} className="border border-gray-200 rounded-lg p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Part *
-                        </label>
-                        <select
-                          value={item.part_id}
-                          onChange={(e) => updateItem(index, 'part_id', e.target.value)}
-                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                            errors[`item_${index}_part`] ? 'border-red-500' : 'border-gray-300'
-                          }`}
-                        >
-                          <option value="">Select Part</option>
-                          {parts.map(part => (
-                            <option key={part._id} value={part._id}>
-                              {part.name} ({part.part_id}) - Stock: {part.quantity_in_stock}
-                            </option>
+                {/* Searchable Part Selector */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={selectedPartName || partSearchTerm}
+                    onChange={handlePartSearchChange}
+                    onFocus={() => {
+                      if (!selectedPartName) {
+                        setIsPartDropdownOpen(true);
+                      }
+                    }}
+                    placeholder="Search parts by name, ID, type, or category..."
+                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  
+                  {/* Clear button */}
+                  {(selectedPartName || partSearchTerm) && (
+                    <button
+                      type="button"
+                      onClick={resetPartSelection}
+                      className="absolute right-8 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      ×
+                    </button>
+                  )}
+                  
+                  {/* Dropdown arrow */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedPartName) {
+                        resetPartSelection();
+                      } else {
+                        setIsPartDropdownOpen(!isPartDropdownOpen);
+                        setPartSearchTerm('');
+                      }
+                    }}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {/* Dropdown list */}
+                  {isPartDropdownOpen && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {filteredParts.length > 0 ? (
+                        <>
+                          {filteredParts.map(part => (
+                            <button
+                              key={part._id}
+                              type="button"
+                              onClick={() => handlePartSelect(part)}
+                              className="w-full px-3 py-2 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none border-b border-gray-100 last:border-b-0"
+                            >
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <div className="font-medium text-gray-900">
+                                    {part.name}
+                                  </div>
+                                  <div className="text-sm text-gray-500">
+                                    {part.part_id} | {part.type} | {part.category}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className={`text-sm font-medium ${
+                                    part.quantity_in_stock <= 0 ? 'text-red-600' :
+                                    part.quantity_in_stock <= (part.min_stock_level || 0) ? 'text-yellow-600' :
+                                    'text-green-600'
+                                  }`}>
+                                    {part.quantity_in_stock} {part.unit}
+                                  </div>
+                                  <div className="text-xs text-gray-400">
+                                    ${(part.cost_per_unit || 0).toFixed(2)}
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
                           ))}
-                        </select>
-                        {errors[`item_${index}_part`] && (
-                          <p className="text-red-500 text-sm mt-1">{errors[`item_${index}_part`]}</p>
-                        )}
-                        {selectedPart && (
-                          <div className="mt-1 text-xs text-gray-500">
-                            Current Stock: {selectedPart.quantity_in_stock} {selectedPart.unit} | 
-                            Category: {selectedPart.type || 'N/A'}
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Quantity Ordered *
-                        </label>
-                        <input
-                          type="number"
-                          value={item.quantity_ordered}
-                          onChange={(e) => updateItem(index, 'quantity_ordered', parseFloat(e.target.value) || 0)}
-                          min="0"
-                          step="1"
-                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                            errors[`item_${index}_quantity`] ? 'border-red-500' : 'border-gray-300'
-                          }`}
-                          placeholder="0"
-                        />
-                        {errors[`item_${index}_quantity`] && (
-                          <p className="text-red-500 text-sm mt-1">{errors[`item_${index}_quantity`]}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Unit Cost
-                        </label>
-                        <input
-                          type="number"
-                          value={item.unit_cost}
-                          onChange={(e) => updateItem(index, 'unit_cost', parseFloat(e.target.value) || 0)}
-                          min="0"
-                          step="0.01"
-                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                            errors[`item_${index}_cost`] ? 'border-red-500' : 'border-gray-300'
-                          }`}
-                          placeholder="0.00"
-                        />
-                        {errors[`item_${index}_cost`] && (
-                          <p className="text-red-500 text-sm mt-1">{errors[`item_${index}_cost`]}</p>
-                        )}
-                        {item.unit_cost > 0 && item.quantity_ordered > 0 && (
-                          <div className="mt-1 text-xs text-gray-500">
-                            Total: ${(item.unit_cost * item.quantity_ordered).toFixed(2)}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex items-end">
-                        <button
-                          type="button"
-                          onClick={() => removeItem(index)}
-                          className="w-full bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700"
-                        >
-                          Remove
-                        </button>
-                      </div>
+                        </>
+                      ) : (
+                        <div className="px-3 py-2 text-gray-500 text-center">
+                          {partSearchTerm ? `No parts found matching "${partSearchTerm}"` : 'No parts available'}
+                        </div>
+                      )}
                     </div>
-
-                    {/* Item Notes */}
-                    <div className="mt-3">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Item Notes
-                      </label>
-                      <input
-                        type="text"
-                        value={item.notes || ''}
-                        onChange={(e) => updateItem(index, 'notes', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                        placeholder="Special instructions for this item"
-                      />
-                    </div>
-
-                    {purchaseOrder && (
-                      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Quantity Received
-                          </label>
-                          <input
-                            type="number"
-                            value={item.quantity_received || 0}
-                            readOnly
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Remaining
-                          </label>
-                          <input
-                            type="number"
-                            value={(item.quantity_ordered || 0) - (item.quantity_received || 0)}
-                            readOnly
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Progress
-                          </label>
-                          <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
-                            <div 
-                              className="bg-green-600 h-2 rounded-full" 
-                              style={{ 
-                                width: `${item.quantity_ordered > 0 ? ((item.quantity_received || 0) / item.quantity_ordered) * 100 : 0}%` 
-                              }}
-                            ></div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                  )}
+                </div>
+                
+                <p className="text-xs text-gray-500 mt-1">
+                  Type to search for parts or click the dropdown arrow to browse all parts
+                </p>
+              </div>
             </div>
-            
-            {/* Order Summary */}
-            {formData.items.length > 0 && (
-              <div className="mt-4 bg-gray-50 p-4 rounded-lg">
-                <h4 className="text-md font-medium text-gray-900 mb-2">Order Summary</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-600">Total Items:</span>
-                    <span className="ml-2 font-medium">
-                      {formData.items.reduce((sum, item) => sum + (item.quantity_ordered || 0), 0)}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Total Cost:</span>
-                    <span className="ml-2 font-medium">
-                      ${formData.items.reduce((sum, item) => sum + ((item.quantity_ordered || 0) * (item.unit_cost || 0)), 0).toFixed(2)}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Part Types:</span>
-                    <span className="ml-2 font-medium">{formData.items.length}</span>
-                  </div>
+
+            {/* Purchase Order Items */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Order Items ({formData.items.length})</h3>
+                <div className="text-sm text-gray-600">
+                  Total Amount: <span className="font-semibold">${totalAmount.toFixed(2)}</span>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
+              {formData.items.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Part</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Cost</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {formData.items.map((item, index) => (
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">
+                                {item.part_name || 'Unknown Part'}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                {item.part_number} | {item.unit}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <input
+                              type="number"
+                              value={item.quantity_ordered}
+                              onChange={(e) => updateItem(index, 'quantity_ordered', parseFloat(e.target.value) || 0)}
+                              min="0.01"
+                              step="0.01"
+                              className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                            />
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <input
+                              type="number"
+                              value={item.unit_cost}
+                              onChange={(e) => updateItem(index, 'unit_cost', parseFloat(e.target.value) || 0)}
+                              min="0"
+                              step="0.01"
+                              className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                            />
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                            ${(item.total_cost || 0).toFixed(2)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={item.notes}
+                              onChange={(e) => updateItem(index, 'notes', e.target.value)}
+                              className="w-32 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                              placeholder="Optional notes"
+                            />
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
+                            <button
+                              type="button"
+                              onClick={() => removeItem(index)}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <div className="text-4xl mb-2">📦</div>
+                  <div className="text-lg font-medium mb-1">No items added yet</div>
+                  <div className="text-sm">Search and select parts above to add them to this purchase order</div>
+                </div>
+              )}
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Order Notes
+              </label>
+              <textarea
+                value={formData.notes}
+                onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                rows="3"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                placeholder="Additional notes for this purchase order"
+              />
+            </div>
+          </form>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="px-6 py-4 border-t border-gray-200 flex-shrink-0">
+          <div className="flex items-center justify-end space-x-3">
             <button
               type="button"
               onClick={onClose}
@@ -472,14 +530,15 @@ const PurchaseOrderModal = ({ isOpen, onClose, onSave, purchaseOrder = null }) =
               Cancel
             </button>
             <button
-              type="submit"
-              disabled={loading}
+              type="button"
+              onClick={handleSubmit}
+              disabled={loading || formData.items.length === 0}
               className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
             >
               {loading ? 'Saving...' : (purchaseOrder ? 'Update Order' : 'Create Order')}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );

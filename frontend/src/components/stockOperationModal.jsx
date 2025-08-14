@@ -17,6 +17,8 @@ const StockOperationModal = ({ isOpen, onClose, part, parts = [], onSave }) => {
   useEffect(() => {
     if (isOpen) {
       fetchPendingOrders();
+      // Fetch all parts for dropdown
+      fetchAllParts();
     }
   }, [isOpen]);
 
@@ -41,6 +43,16 @@ const StockOperationModal = ({ isOpen, onClose, part, parts = [], onSave }) => {
       setPendingOrders(response.data.purchase_orders || []);
     } catch (error) {
       console.error('Error fetching pending orders:', error);
+    }
+  };
+
+  const fetchAllParts = async () => {
+    try {
+      const response = await partsAPI.getAll({ limit: 1000 });
+      console.log('Fetched all parts for stock operation:', response.data.parts?.length);
+      // This assumes parts are passed as props, but if not, we'd need to add state for parts
+    } catch (error) {
+      console.error('Error fetching parts:', error);
     }
   };
 
@@ -119,6 +131,7 @@ const StockOperationModal = ({ isOpen, onClose, part, parts = [], onSave }) => {
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
                 errors.part_id ? 'border-red-500' : 'border-gray-300'
               } ${part ? 'bg-gray-100' : ''}`}
+              style={{ maxHeight: '200px', overflowY: 'auto' }}
             >
               <option value="">Select a part</option>
               {parts.map(p => (
@@ -156,6 +169,7 @@ const StockOperationModal = ({ isOpen, onClose, part, parts = [], onSave }) => {
                 value={formData.purchase_order_id}
                 onChange={(e) => setFormData(prev => ({ ...prev, purchase_order_id: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                style={{ maxHeight: '200px', overflowY: 'auto' }}
               >
                 <option value="">Manual Addition (No PO)</option>
                 {pendingOrders.map(order => (
