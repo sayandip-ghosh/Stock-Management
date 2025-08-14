@@ -11,12 +11,23 @@ const stockTransactionSchema = new mongoose.Schema({
   part_reference: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Part',
-    required: true
+    required: function() {
+      // part_reference is only required for part-related transactions
+      return ['DELIVERY', 'WITHDRAWAL', 'ADJUSTMENT', 'ASSEMBLY_BUILD', 'ASSEMBLY_DISASSEMBLE'].includes(this.transaction_type);
+    }
+  },
+  assembly_reference: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Assembly',
+    required: function() {
+      // assembly_reference is required for assembly-related transactions
+      return ['ASSEMBLY_BUILD', 'ASSEMBLY_DISASSEMBLE', 'ASSEMBLY_SHIP'].includes(this.transaction_type);
+    }
   },
   transaction_type: {
     type: String,
     required: true,
-    enum: ['DELIVERY', 'WITHDRAWAL', 'ADJUSTMENT', 'ASSEMBLY_BUILD', 'ASSEMBLY_DISASSEMBLE'],
+    enum: ['DELIVERY', 'WITHDRAWAL', 'ADJUSTMENT', 'ASSEMBLY_BUILD', 'ASSEMBLY_DISASSEMBLE', 'ASSEMBLY_SHIP'],
     default: 'ADJUSTMENT'
   },
   quantity: {
@@ -48,10 +59,6 @@ const stockTransactionSchema = new mongoose.Schema({
     type: String,
     enum: ['INVOICE', 'ASSEMBLY_ID', 'PURCHASE_ORDER', 'SALES_ORDER', 'ADJUSTMENT', 'OTHER'],
     default: 'OTHER'
-  },
-  assembly_reference: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Assembly'
   },
   purchase_order_reference: {
     type: mongoose.Schema.Types.ObjectId,

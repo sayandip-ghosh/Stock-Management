@@ -73,9 +73,11 @@ export const assembliesAPI = {
   create: (data) => api.post('/assemblies', data),
   update: (id, data) => api.put(`/assemblies/${id}`, data),
   delete: (id) => api.delete(`/assemblies/${id}`),
-  addPart: (id, data) => api.post(`/assemblies/${id}/parts`, data),
-  removePart: (id, partId) => api.delete(`/assemblies/${id}/parts/${partId}`),
+  addPart: (id, data) => api.post(`/assemblies/${id}/bom`, data),
+  removePart: (id, itemId) => api.delete(`/assemblies/${id}/bom/${itemId}`),
   build: (id, data) => api.post(`/assemblies/${id}/build`, data),
+  ship: (id, data) => api.post(`/assemblies/${id}/ship`, data),
+  dismantle: (id, data) => api.post(`/assemblies/${id}/dismantle`, data),
   getStats: () => api.get('/assemblies/stats/summary'),
 };
 

@@ -1,5 +1,4 @@
 const express = require('express');
-const router = express.Router();
 const {
   validateStockOperation,
   performStockOperation,
@@ -7,13 +6,15 @@ const {
   getCurrentStockLevels
 } = require('../controllers/stockManagementController');
 
-// Perform stock operation (DELIVERY/WITHDRAWAL)
+const router = express.Router();
+
+// POST perform stock operation
 router.post('/operation', validateStockOperation, performStockOperation);
 
-// Get stock history for a specific part
+// GET part stock history
 router.get('/history/:part_id', getPartStockHistory);
 
-// Get current stock levels with filters
+// GET current stock levels
 router.get('/current-levels', getCurrentStockLevels);
 
 module.exports = router;
