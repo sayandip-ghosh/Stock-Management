@@ -17,6 +17,7 @@ const assemblyRoutes = require('./routes/assemblies');
 const transactionRoutes = require('./routes/transactions');
 const stockManagementRoutes = require('./routes/stockManagement');
 const purchaseOrderRoutes = require('./routes/purchaseOrders');
+const authRoutes = require('./routes/auth');
 
 // Middleware
 app.use(helmet());
@@ -45,6 +46,7 @@ app.get('/health', (req, res) => {
 });
 
 // API Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/parts', partRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/bom', bomRoutes);

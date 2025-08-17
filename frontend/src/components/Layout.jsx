@@ -1,55 +1,96 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import SideNav from './SideNav';
 
 const Layout = ({ children }) => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    if (window.confirm('Are you sure you want to logout?')) {
+      logout();
+    }
+  };
+
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
-      <SideNav />
-      
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-6 py-4">
-          <div className="flex items-center justify-between">
-            {/* Search Bar */}
-            <div className="flex-1 max-w-md">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search in dashboard"
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                />
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <span className="text-gray-400">🔍</span>
+    <div className="min-h-screen bg-gray-100 flex">
+      {/* Desktop Sidebar - Fixed */}
+      <div className="hidden lg:flex lg:flex-shrink-0">
+        <SideNav />
+      </div>
+
+      {/* Mobile Sidebar - Overlay */}
+      {sidebarOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          <div className="fixed inset-0 bg-black opacity-50" onClick={() => setSidebarOpen(false)} />
+          <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white">
+            <SideNav onClose={() => setSidebarOpen(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* Main content */}
+      <div className="flex flex-col flex-1 lg:flex-1">
+        {/* Top navigation */}
+        <nav className="bg-white shadow-sm border-b border-gray-200">
+          <div className="px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between h-16">
+              <div className="flex items-center">
+                {/* Mobile menu button */}
+                <button
+                  onClick={() => setSidebarOpen(true)}
+                  className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+                >
+                  <span className="sr-only">Open sidebar</span>
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+
+                {/* Breadcrumb or page title */}
+                <div className="ml-4 lg:ml-0">
+                  <h1 className="text-lg font-medium text-gray-900">
+                    Stock Management System
+                  </h1>
                 </div>
               </div>
-            </div>
-            
-            {/* User Profile */}
-            <div className="flex items-center space-x-4">
-              <div className="relative">
-                <span className="text-gray-400">⏰</span>
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full"></span>
-              </div>
-              <div className="relative">
-                <span className="text-gray-400">⚡</span>
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full"></span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                  <span className="text-gray-600 text-sm">👤</span>
+
+              {/* Right side - User menu */}
+              <div className="flex items-center space-x-4">
+
+                {/* User menu */}
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                      <span className="text-purple-600 text-sm font-medium">
+                        {user?.name?.charAt(0) || 'A'}
+                      </span>
+                    </div>
+                    <div className="hidden sm:block">
+                      <span className="text-sm font-medium text-gray-700">
+                        {user?.name || 'Admin'}
+                      </span>
+                      <div className="text-xs text-gray-500">{user?.role || 'Administrator'}</div>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={handleLogout}
+                    className="text-sm text-red-600 hover:text-red-800 font-medium px-3 py-2 rounded-md hover:bg-red-50 transition-colors duration-200"
+                  >
+                    Logout
+                  </button>
                 </div>
-                <span className="text-gray-800 font-medium">Jonothn Smith</span>
-                <span className="text-gray-400">▼</span>
               </div>
             </div>
           </div>
-        </header>
-        
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-auto p-6">
-          {children}
+        </nav>
+
+        {/* Main content area */}
+        <main className="flex-1 py-6">
+          <div className="px-4 sm:px-6 lg:px-8">
+            {children}
+          </div>
         </main>
       </div>
     </div>

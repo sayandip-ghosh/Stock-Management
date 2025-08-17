@@ -1,30 +1,48 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
-const SideNav = () => {
+const SideNav = ({ onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
   const navItems = [
-    { name: 'Dashboard', icon: '📊', path: '/dashboard', count: null },
+    // { name: 'Dashboard', icon: '📊', path: '/', count: null },
     { name: 'Add Parts', icon: '📦', path: '/in-stocks', count: null },
     { name: 'Assembly', icon: '⚙️', path: '/assembly', count: null },
-    { name: 'Settings', icon: '⚙️', path: '/settings', count: null },
   ];
 
   const handleNavigation = (path) => {
     navigate(path);
+    // Close mobile sidebar after navigation
+    if (onClose) {
+      onClose();
+    }
   };
 
   return (
-    <div className="w-64 bg-white h-screen border-r border-gray-200 flex flex-col">
+    <div className="w-64 bg-white h-full border-r border-gray-200 flex flex-col">
+      {/* Close button for mobile */}
+      {onClose && (
+        <div className="lg:hidden flex justify-end p-2">
+          <button
+            onClick={onClose}
+            className="p-2 rounded-md text-gray-400 hover:text-gray-600"
+          >
+            <span className="sr-only">Close sidebar</span>
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* Logo */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center space-x-2">
           <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
             <span className="text-white text-sm">🛍️</span>
           </div>
-          <span className="text-xl font-bold text-gray-800">SHOPLN</span>
+          <span className="text-xl font-bold text-gray-800">TRANSELECTRICAL</span>
         </div>
       </div>
 

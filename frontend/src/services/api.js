@@ -12,6 +12,10 @@ const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => {
@@ -23,11 +27,15 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (error.response?.status === 401) {
+      // Token is invalid, redirect to login
+      localStorage.removeItem('token');
+      window.location.reload();
+    }
     console.error('API Error:', error.response?.data || error.message);
     return Promise.reject(error);
   }
 );
-
 
 // Stock Management API endpoints
 export const stockManagementAPI = {
@@ -41,8 +49,6 @@ export const stockManagementAPI = {
   getCurrentStockLevels: (params = {}) => 
     api.get('/stock-management/current-levels', { params })
 };
-
-
 
 // Suppliers API
 export const suppliersAPI = {
@@ -147,6 +153,15 @@ export const purchaseOrdersAPI = {
   // Update individual item receipt
   receiveItem: (orderId, itemId, data) => 
     api.post(`/purchase-orders/${orderId}/items/${itemId}/receive`, data)
+};
+
+// Auth API
+export const authAPI = {
+  checkUserExists: () => api.get('/auth/check'),
+  signup: (userData) => api.post('/auth/signup', userData),
+  login: (credentials) => api.post('/auth/login', credentials),
+  verifyToken: () => api.get('/auth/verify'),
+  logout: () => api.post('/auth/logout')
 };
 
 export default api;
