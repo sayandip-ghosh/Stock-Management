@@ -22,6 +22,7 @@ const InStocks = () => {
   const [pendingOrders, setPendingOrders] = useState([]);
   const [selectedPartForEdit, setSelectedPartForEdit] = useState(null);
   const [isEditPartsModalOpen, setIsEditPartsModalOpen] = useState(false);
+  const [isViewAllPendingOrdersModalOpen, setIsViewAllPendingOrdersModalOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -363,9 +364,18 @@ const InStocks = () => {
               })}
             </div>
             {pendingOrders.length > 3 && (
-              <p className="text-sm text-yellow-700 mt-2">
-                And {pendingOrders.length - 3} more orders awaiting delivery...
-              </p>
+              <div className="flex items-center justify-between mt-3">
+                <p className="text-sm text-yellow-700">
+                  And {pendingOrders.length - 3} more orders awaiting delivery...
+                </p>
+                <button
+                  onClick={() => setIsViewAllPendingOrdersModalOpen(true)}
+                  className="bg-yellow-600 text-white px-3 py-1.5 rounded text-sm hover:bg-yellow-700 flex items-center space-x-1"
+                >
+                  <span>👁️</span>
+                  <span>View All Orders</span>
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -609,7 +619,234 @@ const InStocks = () => {
           </div>
         </div>
       )}
+
+      {/* View All Pending Orders Modal */}
+      {isViewAllPendingOrdersModalOpen && (
+        <ViewAllPendingOrdersModal
+          isOpen={isViewAllPendingOrdersModalOpen}
+          onClose={() => setIsViewAllPendingOrdersModalOpen(false)}
+          orders={pendingOrders}
+          onReceiveItems={(order) => {
+            setSelectedPurchaseOrder(order);
+            setIsReceiveItemsModalOpen(true);
+            setIsViewAllPendingOrdersModalOpen(false);
+          }}
+          onViewOrder={(order) => {
+            setSelectedPurchaseOrder(order);
+            setIsPurchaseOrderModalOpen(true);
+            setIsViewAllPendingOrdersModalOpen(false);
+          }}
+        />
+      )}
     </Layout>
+  );
+};
+
+// View All Pending Orders Modal Component
+const ViewAllPendingOrdersModal = ({ isOpen, onClose, orders, onReceiveItems, onViewOrder }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('order_date');
+
+  if (!isOpen) return null;
+
+  // Filter and sort orders
+  const filteredOrders = orders
+    .filter(order => {
+      const matchesSearch = order.order_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           order.supplier_name?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'order_date':
+          return new Date(b.order_date) - new Date(a.order_date);
+        case 'supplier_name':
+          return a.supplier_name.localeCompare(b.supplier_name);
+        case 'completion':
+          return (b.completion_percentage || 0) - (a.completion_percentage || 0);
+        default:
+          return 0;
+      }
+    });
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900">
+              All Pending & Partial Purchase Orders ({orders.length})
+            </h2>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+          
+          {/* Filters */}
+          <div className="flex items-center space-x-4 mt-4">
+            <div className="flex-1">
+              <input
+                type="text"
+                placeholder="Search by order number or supplier..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              />
+            </div>
+            <div>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              >
+                <option value="all">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="partial">Partial</option>
+              </select>
+            </div>
+            <div>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              >
+                <option value="order_date">Order Date</option>
+                <option value="supplier_name">Supplier Name</option>
+                <option value="completion">Completion %</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          {filteredOrders.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredOrders.map(order => {
+                const completionPercentage = order.completion_percentage || 0;
+                const statusColor = order.status === 'partial' ? 'text-orange-600' : 'text-gray-600';
+                const statusText = order.status === 'partial' ? 'Partial' : 'Pending';
+                const statusBgColor = order.status === 'partial' ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200';
+                
+                return (
+                  <div key={order._id} className={`border rounded-lg p-4 hover:shadow-md transition-shadow ${statusBgColor}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{order.order_number}</p>
+                        <p className="text-sm text-gray-600">{order.supplier_name}</p>
+                        <p className="text-xs text-gray-500">
+                          {order.items?.length || 0} items • {new Date(order.order_date).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex flex-col space-y-1">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          order.status === 'partial' ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {statusText}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Progress bar */}
+                    <div className="mb-3">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className={`text-xs font-medium ${statusColor}`}>
+                          Progress: {completionPercentage}%
+                        </span>
+                        {order.expected_delivery_date && (
+                          <span className="text-xs text-gray-500">
+                            Due: {new Date(order.expected_delivery_date).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full transition-all duration-300 ${
+                            order.status === 'partial' ? 'bg-orange-500' : 'bg-gray-400'
+                          }`}
+                          style={{ width: `${completionPercentage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    {/* Order Details */}
+                    <div className="mb-3 text-xs text-gray-600">
+                      {order.supplier_contact && (
+                        <p>Contact: {order.supplier_contact}</p>
+                      )}
+                      {order.notes && (
+                        <p className="mt-1 truncate" title={order.notes}>
+                          Notes: {order.notes}
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Action buttons */}
+                    <div className="flex items-center justify-between space-x-2">
+                      <button
+                        onClick={() => onReceiveItems(order)}
+                        className="flex-1 bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700 flex items-center justify-center space-x-1"
+                      >
+                        <span>📦</span>
+                        <span>Receive</span>
+                      </button>
+                      <button
+                        onClick={() => onViewOrder(order)}
+                        className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 flex items-center justify-center space-x-1"
+                      >
+                        <span>👁️</span>
+                        <span>View</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="text-gray-400 text-4xl mb-4">📋</div>
+              <div className="text-gray-500 text-lg font-medium mb-2">
+                No orders found
+              </div>
+              <div className="text-gray-400 text-sm">
+                {searchTerm || statusFilter !== 'all' 
+                  ? 'Try adjusting your search or filter criteria' 
+                  : 'No pending or partial orders available'}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Summary Footer */}
+        <div className="px-6 py-4 border-t border-gray-200 flex-shrink-0 bg-gray-50">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              Showing {filteredOrders.length} of {orders.length} orders
+            </div>
+            <div className="flex items-center space-x-4 text-sm">
+              <div className="flex items-center space-x-1">
+                <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                <span>Pending ({orders.filter(o => o.status === 'pending').length})</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                <span>Partial ({orders.filter(o => o.status === 'partial').length})</span>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
