@@ -585,6 +585,1111 @@ const Assembly = () => {
   );
 };
 
+// Create Assembly Modal Component
+const CreateAssemblyModal = ({ isOpen, onClose, onSubmit }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    category: '',
+    estimated_build_time: 0,
+    build_cost: 0,
+    notes: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        name: '',
+        description: '',
+        category: '',
+        estimated_build_time: 0,
+        build_cost: 0,
+        notes: ''
+      });
+      setErrors({});
+    }
+  }, [isOpen]);
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.name.trim()) {
+      newErrors.name = 'Assembly name is required';
+    }
+    
+    if (formData.estimated_build_time < 0) {
+      newErrors.estimated_build_time = 'Build time cannot be negative';
+    }
+    
+    if (formData.build_cost < 0) {
+      newErrors.build_cost = 'Build cost cannot be negative';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await onSubmit(formData);
+    } catch (error) {
+      console.error('Error creating assembly:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900">Create New Assembly</h2>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Assembly Name *</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                  errors.name ? 'border-red-500' : 'border-gray-300'
+                }`}
+                placeholder="Enter assembly name"
+              />
+              {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+              <select
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                style={{ maxHeight: '200px', overflowY: 'auto' }}
+              >
+                <option value="">Select category</option>
+                <option value="Copper">Copper</option>
+                <option value="GI">GI</option>
+                <option value="SS">SS</option>
+                <option value="Brass">Brass</option>
+                <option value="PB">PB</option>
+                <option value="Aluminium">Aluminium</option>
+                <option value="Nylon">Nylon</option>
+                <option value="Assembly">Assembly</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Build Time (minutes)</label>
+              <input
+                type="number"
+                value={formData.estimated_build_time}
+                onChange={(e) => setFormData({ ...formData, estimated_build_time: parseFloat(e.target.value) || 0 })}
+                min="0"
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                  errors.estimated_build_time ? 'border-red-500' : 'border-gray-300'
+                }`}
+                placeholder="0"
+              />
+              {errors.estimated_build_time && <p className="text-red-500 text-sm mt-1">{errors.estimated_build_time}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Build Cost</label>
+              <input
+                type="number"
+                value={formData.build_cost}
+                onChange={(e) => setFormData({ ...formData, build_cost: parseFloat(e.target.value) || 0 })}
+                min="0"
+                step="0.01"
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                  errors.build_cost ? 'border-red-500' : 'border-gray-300'
+                }`}
+                placeholder="0.00"
+              />
+              {errors.build_cost && <p className="text-red-500 text-sm mt-1">{errors.build_cost}</p>}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              rows="3"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="Enter assembly description"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              rows="2"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="Additional notes"
+            />
+          </div>
+
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+            >
+              {loading ? 'Creating...' : 'Create Assembly'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Edit Assembly Modal Component
+const EditAssemblyModal = ({ isOpen, onClose, onSubmit, assembly }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    category: '',
+    estimated_build_time: 0,
+    build_cost: 0,
+    notes: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    if (isOpen && assembly) {
+      setFormData({
+        name: assembly.name || '',
+        description: assembly.description || '',
+        category: assembly.category || '',
+        estimated_build_time: assembly.estimated_build_time || 0,
+        build_cost: assembly.build_cost || 0,
+        notes: assembly.notes || ''
+      });
+      setErrors({});
+    }
+  }, [isOpen, assembly]);
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.name.trim()) {
+      newErrors.name = 'Assembly name is required';
+    }
+    
+    if (formData.estimated_build_time < 0) {
+      newErrors.estimated_build_time = 'Build time cannot be negative';
+    }
+    
+    if (formData.build_cost < 0) {
+      newErrors.build_cost = 'Build cost cannot be negative';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await onSubmit(formData);
+    } catch (error) {
+      console.error('Error updating assembly:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen || !assembly) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Edit Assembly</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Assembly ID: {assembly.assembly_id}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Assembly Name *</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                  errors.name ? 'border-red-500' : 'border-gray-300'
+                }`}
+                placeholder="Enter assembly name"
+              />
+              {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+              <select
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                style={{ maxHeight: '200px', overflowY: 'auto' }}
+              >
+                <option value="">Select category</option>
+                <option value="Copper">Copper</option>
+                <option value="GI">GI</option>
+                <option value="SS">SS</option>
+                <option value="Brass">Brass</option>
+                <option value="PB">PB</option>
+                <option value="Aluminium">Aluminium</option>
+                <option value="Nylon">Nylon</option>
+                <option value="Assembly">Assembly</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Build Time (minutes)</label>
+              <input
+                type="number"
+                value={formData.estimated_build_time}
+                onChange={(e) => setFormData({ ...formData, estimated_build_time: parseFloat(e.target.value) || 0 })}
+                min="0"
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                  errors.estimated_build_time ? 'border-red-500' : 'border-gray-300'
+                }`}
+                placeholder="0"
+              />
+              {errors.estimated_build_time && <p className="text-red-500 text-sm mt-1">{errors.estimated_build_time}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Build Cost</label>
+              <input
+                type="number"
+                value={formData.build_cost}
+                onChange={(e) => setFormData({ ...formData, build_cost: parseFloat(e.target.value) || 0 })}
+                min="0"
+                step="0.01"
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                  errors.build_cost ? 'border-red-500' : 'border-gray-300'
+                }`}
+                placeholder="0.00"
+              />
+              {errors.build_cost && <p className="text-red-500 text-sm mt-1">{errors.build_cost}</p>}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              rows="3"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="Enter assembly description"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              rows="2"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="Additional notes"
+            />
+          </div>
+
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+            >
+              {loading ? 'Updating...' : 'Update Assembly'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// View Assembly Modal Component
+const ViewAssemblyModal = ({ isOpen, onClose, assembly, onEdit }) => {
+  if (!isOpen || !assembly) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">{assembly.name}</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Assembly ID: {assembly.assembly_id} | Category: {assembly.category || 'Uncategorized'}
+              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={onEdit}
+                className="px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
+              >
+                Edit
+              </button>
+              <button
+                onClick={onClose}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Assembly Details */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Description</label>
+                <p className="mt-1 text-sm text-gray-900">{assembly.description || 'No description provided'}</p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Status</label>
+                <span className={`mt-1 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                  assembly.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                }`}>
+                  {assembly.is_active ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Build Time</label>
+                <p className="mt-1 text-sm text-gray-900">{assembly.estimated_build_time || 0} minutes</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Build Cost</label>
+                <p className="mt-1 text-sm text-gray-900">${(assembly.build_cost || 0).toFixed(2)}</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Ready Built</label>
+                <p className="mt-1 text-2xl font-bold text-green-600">{assembly.ready_built || 0}</p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Total Shipped</label>
+                <p className="mt-1 text-2xl font-bold text-blue-600">{assembly.total_shipped || 0}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Total Dismantled</label>
+                <p className="mt-1 text-2xl font-bold text-orange-600">{assembly.total_dismantled || 0}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Total Built</label>
+                <p className="mt-1 text-2xl font-bold text-purple-600">
+                  {(assembly.ready_built || 0) + (assembly.total_shipped || 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* BOM Summary */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-3">Bill of Materials Summary</h3>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <span className="text-sm font-medium text-gray-700">Total Parts:</span>
+                  <span className="ml-2 text-sm text-gray-900">{assembly.bom_items?.length || 0}</span>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-700">BOM Cost:</span>
+                  <span className="ml-2 text-sm text-gray-900">
+                    ${assembly.bom_items?.reduce((total, item) => {
+                      const partCost = item.part_id?.cost_per_unit || 0;
+                      return total + (partCost * item.quantity_required);
+                    }, 0).toFixed(2) || '0.00'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-700">Can Build:</span>
+                  <span className={`ml-2 text-sm font-medium ${
+                    assembly.bom_items?.every(item => {
+                      const availableStock = item.part_id?.quantity_in_stock || 0;
+                      return availableStock >= item.quantity_required;
+                    }) ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {assembly.bom_items?.every(item => {
+                      const availableStock = item.part_id?.quantity_in_stock || 0;
+                      return availableStock >= item.quantity_required;
+                    }) ? 'Yes' : 'No'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Notes */}
+          {assembly.notes && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Notes</label>
+              <p className="mt-1 text-sm text-gray-900 bg-gray-50 p-3 rounded-lg">{assembly.notes}</p>
+            </div>
+          )}
+
+          {/* Metadata */}
+          <div className="text-xs text-gray-500 pt-4 border-t border-gray-200">
+            <p>Created: {new Date(assembly.createdAt).toLocaleString()}</p>
+            <p>Last Updated: {new Date(assembly.updatedAt).toLocaleString()}</p>
+            <p>Created By: {assembly.created_by || 'System'}</p>
+          </div>
+
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Build Assembly Modal Component
+const BuildAssemblyModal = ({ isOpen, onClose, onSubmit, assembly, parts }) => {
+  const [formData, setFormData] = useState({
+    quantity: 1,
+    created_by: 'system'
+  });
+  const [loading, setLoading] = useState(false);
+  const [buildAnalysis, setBuildAnalysis] = useState(null);
+
+  useEffect(() => {
+    if (isOpen && assembly) {
+      setFormData({
+        quantity: 1,
+        created_by: 'system'
+      });
+      analyzeBuild(1);
+    }
+  }, [isOpen, assembly]);
+
+  useEffect(() => {
+    if (formData.quantity > 0 && assembly) {
+      analyzeBuild(formData.quantity);
+    }
+  }, [formData.quantity, assembly]);
+
+  const analyzeBuild = (quantity) => {
+    if (!assembly.bom_items || assembly.bom_items.length === 0) {
+      setBuildAnalysis({
+        canBuild: false,
+        reason: 'No BOM items defined',
+        insufficientParts: [],
+        maxBuildable: 0
+      });
+      return;
+    }
+
+    const insufficientParts = [];
+    let maxBuildable = Infinity;
+
+    assembly.bom_items.forEach(item => {
+      const requiredQuantity = item.quantity_required * quantity;
+      
+      // Handle both populated and non-populated part data
+      let availableQuantity = 0;
+      let partName = 'Unknown Part';
+      
+      if (typeof item.part_id === 'object') {
+        availableQuantity = item.part_id.quantity_in_stock || 0;
+        partName = item.part_id.name || 'Unknown Part';
+      } else {
+        const partData = parts.find(part => part._id === item.part_id);
+        if (partData) {
+          availableQuantity = partData.quantity_in_stock || 0;
+          partName = partData.name || 'Unknown Part';
+        }
+      }
+
+      const maxFromThisPart = Math.floor(availableQuantity / item.quantity_required);
+      maxBuildable = Math.min(maxBuildable, maxFromThisPart);
+
+      if (availableQuantity < requiredQuantity) {
+        insufficientParts.push({
+          part_name: partName,
+          required: requiredQuantity,
+          available: availableQuantity,
+          shortage: requiredQuantity - availableQuantity
+        });
+      }
+    });
+
+    setBuildAnalysis({
+      canBuild: insufficientParts.length === 0,
+      insufficientParts,
+      maxBuildable: maxBuildable === Infinity ? 0 : maxBuildable,
+      reason: insufficientParts.length > 0 ? 'Insufficient stock for some parts' : null
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (formData.quantity <= 0) {
+      alert('Quantity must be greater than 0');
+      return;
+    }
+
+    if (buildAnalysis && !buildAnalysis.canBuild) {
+      if (!window.confirm('Some parts are insufficient. Do you want to proceed anyway? This may fail the build.')) {
+        return;
+      }
+    }
+    
+    setLoading(true);
+    try {
+      await onSubmit(formData);
+    } catch (error) {
+      console.error('Error building assembly:', error);
+      alert('Build failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen || !assembly) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Build Assembly</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                {assembly.name} ({assembly.assembly_id})
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Current Status */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-sm font-medium text-gray-900 mb-2">Current Status</h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-gray-600">Ready Built:</span>
+                <span className="ml-2 font-medium">{assembly.ready_built || 0}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">BOM Items:</span>
+                <span className="ml-2 font-medium">{assembly.bom_items?.length || 0}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quantity Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Quantity to Build *
+            </label>
+            <input
+              type="number"
+              value={formData.quantity}
+              onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
+              min="1"
+              max={buildAnalysis?.maxBuildable || 1000}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+            {buildAnalysis && buildAnalysis.maxBuildable > 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                Maximum buildable: {buildAnalysis.maxBuildable}
+              </p>
+            )}
+          </div>
+
+          {/* Build Analysis */}
+          {buildAnalysis && (
+            <div className={`p-4 rounded-lg border-2 ${
+              buildAnalysis.canBuild 
+                ? 'bg-green-50 border-green-200' 
+                : 'bg-red-50 border-red-200'
+            }`}>
+              <div className={`text-lg font-medium ${
+                buildAnalysis.canBuild ? 'text-green-800' : 'text-red-800'
+              }`}>
+                {buildAnalysis.canBuild ? '✅ Can Build' : '❌ Cannot Build'}
+              </div>
+              
+              {buildAnalysis.insufficientParts.length > 0 && (
+                <div className="mt-3">
+                  <h4 className="text-sm font-medium text-red-800 mb-2">Insufficient Parts:</h4>
+                  <div className="space-y-1">
+                    {buildAnalysis.insufficientParts.map((part, index) => (
+                      <div key={index} className="text-sm text-red-700">
+                        {part.part_name}: Need {part.required}, Have {part.available} (Short: {part.shortage})
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {buildAnalysis.canBuild && (
+                <div className="mt-2 text-sm text-green-700">
+                  All required parts are available for building {formData.quantity} unit(s).
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || formData.quantity <= 0}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {loading ? 'Building...' : `Build ${formData.quantity} Unit(s)`}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Ship Assembly Modal Component
+const ShipAssemblyModal = ({ isOpen, onClose, onSubmit, assembly }) => {
+  const [formData, setFormData] = useState({
+    quantity: 1,
+    shipping_details: '',
+    tracking_number: '',
+    customer_info: '',
+    created_by: 'system'
+  });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && assembly) {
+      setFormData({
+        quantity: 1,
+        shipping_details: '',
+        tracking_number: '',
+        customer_info: '',
+        created_by: 'system'
+      });
+    }
+  }, [isOpen, assembly]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (formData.quantity <= 0) {
+      alert('Quantity must be greater than 0');
+      return;
+    }
+
+    if (formData.quantity > (assembly.ready_built || 0)) {
+      alert('Cannot ship more than ready-built quantity');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await onSubmit(formData);
+    } catch (error) {
+      console.error('Error shipping assembly:', error);
+      alert('Shipping failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen || !assembly) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Ship Assembly</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                {assembly.name} ({assembly.assembly_id})
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Current Status */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-sm font-medium text-gray-900 mb-2">Available for Shipping</h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-gray-600">Ready Built:</span>
+                <span className="ml-2 font-medium text-green-600">{assembly.ready_built || 0}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Total Shipped:</span>
+                <span className="ml-2 font-medium">{assembly.total_shipped || 0}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quantity */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Quantity to Ship *
+            </label>
+            <input
+              type="number"
+              value={formData.quantity}
+              onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
+              min="1"
+              max={assembly.ready_built || 0}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Maximum available: {assembly.ready_built || 0}
+            </p>
+          </div>
+
+          {/* Customer Info */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Customer Information
+            </label>
+            <input
+              type="text"
+              value={formData.customer_info}
+              onChange={(e) => setFormData({ ...formData, customer_info: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="Customer name or company"
+            />
+          </div>
+
+          {/* Tracking Number */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Tracking Number
+            </label>
+            <input
+              type="text"
+              value={formData.tracking_number}
+              onChange={(e) => setFormData({ ...formData, tracking_number: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="Carrier tracking number"
+            />
+          </div>
+
+          {/* Shipping Details */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Shipping Details
+            </label>
+            <textarea
+              value={formData.shipping_details}
+              onChange={(e) => setFormData({ ...formData, shipping_details: e.target.value })}
+              rows="3"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="Shipping address, carrier, special instructions, etc."
+            />
+          </div>
+
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || formData.quantity <= 0 || formData.quantity > (assembly.ready_built || 0)}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+            >
+              {loading ? 'Shipping...' : `Ship ${formData.quantity} Unit(s)`}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Dismantle Assembly Modal Component
+const DismantleAssemblyModal = ({ isOpen, onClose, onSubmit, assembly }) => {
+  const [formData, setFormData] = useState({
+    quantity: 1,
+    reason: '',
+    created_by: 'system'
+  });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && assembly) {
+      setFormData({
+        quantity: 1,
+        reason: '',
+        created_by: 'system'
+      });
+    }
+  }, [isOpen, assembly]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (formData.quantity <= 0) {
+      alert('Quantity must be greater than 0');
+      return;
+    }
+
+    if (formData.quantity > (assembly.ready_built || 0)) {
+      alert('Cannot dismantle more than ready-built quantity');
+      return;
+    }
+
+    if (!formData.reason.trim()) {
+      alert('Please provide a reason for dismantling');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await onSubmit(formData);
+    } catch (error) {
+      console.error('Error dismantling assembly:', error);
+      alert('Dismantling failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen || !assembly) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Dismantle Assembly</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                {assembly.name} ({assembly.assembly_id})
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Warning */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <span className="text-yellow-400 text-xl">⚠️</span>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-yellow-800">
+                  Warning: Dismantling Assembly
+                </h3>
+                <p className="mt-1 text-sm text-yellow-700">
+                  This action will dismantle the assembly and return all parts to inventory. This cannot be undone.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Current Status */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-sm font-medium text-gray-900 mb-2">Current Status</h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-gray-600">Ready Built:</span>
+                <span className="ml-2 font-medium">{assembly.ready_built || 0}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Total Dismantled:</span>
+                <span className="ml-2 font-medium">{assembly.total_dismantled || 0}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quantity */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Quantity to Dismantle *
+            </label>
+            <input
+              type="number"
+              value={formData.quantity}
+              onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
+              min="1"
+              max={assembly.ready_built || 0}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Maximum available: {assembly.ready_built || 0}
+            </p>
+          </div>
+
+          {/* Reason */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Reason for Dismantling *
+            </label>
+            <textarea
+              value={formData.reason}
+              onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+              rows="3"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+              placeholder="e.g., Quality issue, Design change, Customer request, etc."
+              required
+            />
+          </div>
+
+          {/* Parts that will be returned */}
+          {assembly.bom_items && assembly.bom_items.length > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h4 className="text-sm font-medium text-blue-800 mb-2">
+                Parts that will be returned to inventory:
+              </h4>
+              <div className="space-y-1">
+                {assembly.bom_items.map((item, index) => {
+                  const partName = typeof item.part_id === 'object' 
+                    ? item.part_id.name 
+                    : 'Unknown Part';
+                  const returnQuantity = item.quantity_required * formData.quantity;
+                  
+                  return (
+                    <div key={index} className="text-sm text-blue-700">
+                      {partName}: +{returnQuantity} units
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || formData.quantity <= 0 || formData.quantity > (assembly.ready_built || 0) || !formData.reason.trim()}
+              className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
+            >
+              {loading ? 'Dismantling...' : `Dismantle ${formData.quantity} Unit(s)`}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 // Batch Build Modal Component
 const BatchBuildModal = ({ isOpen, onClose, onSubmit, assemblies, parts }) => {
   const [selectedAssemblies, setSelectedAssemblies] = useState([]);
@@ -688,7 +1793,6 @@ const BatchBuildModal = ({ isOpen, onClose, onSubmit, assemblies, parts }) => {
 
     Object.entries(totalPartRequirements).forEach(([partId, requirement]) => {
       const { part_data, total_required, available_stock } = requirement;
-      const canSupply = Math.floor(available_stock / total_required * selectedAssemblies.reduce((sum, item) => sum + item.quantity, 0));
       
       if (available_stock < total_required) {
         insufficientParts.push({
