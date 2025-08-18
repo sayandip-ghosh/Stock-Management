@@ -18,6 +18,7 @@ const Assembly = () => {
   const [isShipModalOpen, setIsShipModalOpen] = useState(false);
   const [isDismantleModalOpen, setIsDismantleModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isBatchBuildModalOpen, setIsBatchBuildModalOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -123,6 +124,23 @@ const Assembly = () => {
     }
   };
 
+  const handleBatchBuild = async (batchData) => {
+    try {
+      // Process each assembly build request
+      for (const item of batchData.items) {
+        if (item.quantity > 0) {
+          await assembliesAPI.build(item.assembly_id, { quantity: item.quantity });
+        }
+      }
+
+      fetchData(); // Refresh data
+      setIsBatchBuildModalOpen(false);
+    } catch (error) {
+      console.error('Error in batch build:', error);
+      throw error;
+    }
+  };
+
   const filteredAssemblies = assemblies.filter(assembly =>
     assembly.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     assembly.assembly_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -137,10 +155,10 @@ const Assembly = () => {
     }
 
     let maxBuildable = Infinity;
-    
+
     assembly.bom_items.forEach(item => {
       let availableStock = 0;
-      
+
       // Handle both populated and non-populated part data
       if (typeof item.part_id === 'object') {
         availableStock = item.part_id.quantity_in_stock || 0;
@@ -149,9 +167,9 @@ const Assembly = () => {
         const partData = parts.find(part => part._id === item.part_id);
         availableStock = partData?.quantity_in_stock || 0;
       }
-      
+
       const requiredPerAssembly = item.quantity_required || 0;
-      
+
       if (requiredPerAssembly > 0) {
         const possibleFromThisPart = Math.floor(availableStock / requiredPerAssembly);
         maxBuildable = Math.min(maxBuildable, possibleFromThisPart);
@@ -159,7 +177,7 @@ const Assembly = () => {
         maxBuildable = 0; // If any part has zero requirement, something is wrong
       }
     });
-    
+
     return maxBuildable === Infinity ? 0 : maxBuildable;
   };
 
@@ -214,6 +232,13 @@ const Assembly = () => {
                 <span className="text-gray-400">🔍</span>
               </div>
             </div>
+            <button 
+              onClick={() => setIsBatchBuildModalOpen(true)}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-2"
+            >
+              <span>🔨</span>
+              <span>Batch Build</span>
+            </button>
             <button 
               onClick={() => setIsCreateModalOpen(true)}
               className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center space-x-2"
@@ -546,436 +571,217 @@ const Assembly = () => {
           assembly={selectedAssembly}
         />
       )}
+
+      {isBatchBuildModalOpen && (
+        <BatchBuildModal
+          isOpen={isBatchBuildModalOpen}
+          onClose={() => setIsBatchBuildModalOpen(false)}
+          onSubmit={handleBatchBuild}
+          assemblies={assemblies}
+          parts={parts}
+        />
+      )}
     </Layout>
   );
 };
 
-// Build Assembly Modal Component
-const BuildAssemblyModal = ({ isOpen, onClose, onSubmit, assembly, parts }) => {
-  const [quantity, setQuantity] = useState(1);
-  const [canBuild, setCanBuild] = useState(true);
-  const [buildCheck, setBuildCheck] = useState(null);
-
-  useEffect(() => {
-    if (assembly && assembly.bom_items) {
-      checkBuildAvailability();
-    }
-  }, [assembly, quantity]);
-
-  const checkBuildAvailability = () => {
-    if (!assembly.bom_items || assembly.bom_items.length === 0) {
-      setCanBuild(false);
-      setBuildCheck({ canBuild: false, reason: 'No BOM items defined' });
-      return;
-    }
-
-    const insufficientParts = [];
-    
-    assembly.bom_items.forEach(item => {
-      const required = item.quantity_required * quantity;
-      
-      // Handle both populated and non-populated part data
-      let available = 0;
-      if (item.part_id) {
-        if (typeof item.part_id === 'object') {
-          available = item.part_id.quantity_in_stock || 0;
-        } else {
-          // Find part data from parts array if not populated
-          const partData = parts.find(part => part._id === item.part_id);
-          available = partData?.quantity_in_stock || 0;
-        }
-      }
-      
-      if (available < required) {
-        const partName = typeof item.part_id === 'object' 
-          ? item.part_id.name 
-          : parts.find(part => part._id === item.part_id)?.name || 'Unknown';
-          
-        insufficientParts.push({
-          part_name: partName,
-          required,
-          available,
-          shortage: required - available
-        });
-      }
-    });
-
-    const buildAvailable = insufficientParts.length === 0;
-    setCanBuild(buildAvailable);
-    setBuildCheck({
-      canBuild: buildAvailable,
-      insufficientParts,
-      reason: buildAvailable ? null : 'Insufficient stock for some parts'
-    });
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (canBuild) {
-      onSubmit({ quantity: parseInt(quantity) });
-    }
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900">Build Assembly</h2>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 text-2xl"
-            >
-              ×
-            </button>
-          </div>
-          <div className="mt-2">
-            <p className="text-gray-600">Assembly: <span className="font-semibold">{assembly?.name}</span></p>
-            <p className="text-gray-600">Assembly ID: {assembly?.assembly_id}</p>
-            <p className="text-gray-600">BOM Items: {assembly?.bom_items?.length || 0}</p>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Quantity to Build</label>
-              <input
-                type="number"
-                min="1"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                required
-              />
-            </div>
-
-            {/* Build Check Results */}
-            {buildCheck && (
-              <div className={`p-4 rounded-lg ${canBuild ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
-                <h4 className={`font-medium ${canBuild ? 'text-green-800' : 'text-red-800'}`}>
-                  Build Status: {canBuild ? 'Ready to Build' : 'Cannot Build'}
-                </h4>
-                
-                {!canBuild && buildCheck.insufficientParts && (
-                  <div className="mt-3">
-                    <p className="text-red-700 text-sm mb-2">Insufficient stock for:</p>
-                    <div className="max-h-40 overflow-y-auto">
-                      <ul className="text-sm text-red-600 space-y-1">
-                        {buildCheck.insufficientParts.map((part, index) => (
-                          <li key={index} className="flex justify-between items-center py-1 px-2 bg-red-100 rounded">
-                            <span>• {part.part_name}</span>
-                            <span className="text-xs">Need {part.required}, Have {part.available} (Short: {part.shortage})</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                )}
-                
-                {canBuild && assembly.bom_items && (
-                  <div className="mt-3">
-                    <p className="text-green-700 text-sm mb-2">Parts that will be consumed:</p>
-                    <div className="max-h-60 overflow-y-auto">
-                      <ul className="text-sm text-green-600 space-y-1">
-                        {assembly.bom_items.map((item, index) => {
-                          const partName = typeof item.part_id === 'object' 
-                            ? item.part_id.name 
-                            : parts.find(part => part._id === item.part_id)?.name || 'Unknown';
-                          const partUnit = typeof item.part_id === 'object' 
-                            ? item.part_id.unit 
-                            : parts.find(part => part._id === item.part_id)?.unit || 'pcs';
-                          const partStock = typeof item.part_id === 'object' 
-                            ? item.part_id.quantity_in_stock 
-                            : parts.find(part => part._id === item.part_id)?.quantity_in_stock || 0;
-                          const consumeQty = item.quantity_required * quantity;
-                          const remainingStock = partStock - consumeQty;
-                            
-                          return (
-                            <li key={index} className="flex justify-between items-center py-2 px-3 bg-green-100 rounded">
-                              <div>
-                                <span className="font-medium">{partName}</span>
-                                <span className="text-xs text-green-600 block">
-                                  Will consume: {consumeQty} {partUnit}
-                                </span>
-                              </div>
-                              <div className="text-right">
-                                <span className="text-xs">
-                                  Stock: {partStock} → {remainingStock} {partUnit}
-                                </span>
-                                {remainingStock <= 0 && (
-                                  <span className="block text-xs text-orange-600 font-medium">
-                                    ⚠️ Will deplete stock
-                                  </span>
-                                )}
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* BOM Items Summary Table */}
-            {assembly?.bom_items && assembly.bom_items.length > 0 && (
-              <div className="border border-gray-200 rounded-lg">
-                <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-                  <h4 className="text-sm font-medium text-gray-900">BOM Items Summary</h4>
-                </div>
-                <div className="max-h-80 overflow-y-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50 sticky top-0">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Part</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Required</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Available</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {assembly.bom_items.map((item, index) => {
-                        const partName = typeof item.part_id === 'object' 
-                          ? item.part_id.name 
-                          : parts.find(part => part._id === item.part_id)?.name || 'Unknown';
-                        const partUnit = typeof item.part_id === 'object' 
-                          ? item.part_id.unit 
-                          : parts.find(part => part._id === item.part_id)?.unit || 'pcs';
-                        const partStock = typeof item.part_id === 'object' 
-                          ? item.part_id.quantity_in_stock 
-                          : parts.find(part => part._id === item.part_id)?.quantity_in_stock || 0;
-                        const required = item.quantity_required * quantity;
-                        const canBuildItem = partStock >= required;
-
-                        return (
-                          <tr key={index} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm text-gray-900">{partName}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{required} {partUnit}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{partStock} {partUnit}</td>
-                            <td className="px-4 py-3 text-sm">
-                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                canBuildItem 
-                                  ? 'bg-green-100 text-green-800' 
-                                  : 'bg-red-100 text-red-800'
-                              }`}>
-                                {canBuildItem ? 'Available' : `Short ${required - partStock}`}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </form>
-        </div>
-
-        <div className="px-6 py-4 border-t border-gray-200 flex-shrink-0">
-          <div className="flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={!canBuild}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {canBuild ? 'Build Assembly' : 'Cannot Build'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Ship Assembly Modal Component
-const ShipAssemblyModal = ({ isOpen, onClose, onSubmit, assembly }) => {
-  const [formData, setFormData] = useState({
-    quantity: 1,
-    shipping_details: '',
-    tracking_number: '',
-    customer_info: ''
-  });
+// Batch Build Modal Component
+const BatchBuildModal = ({ isOpen, onClose, onSubmit, assemblies, parts }) => {
+  const [selectedAssemblies, setSelectedAssemblies] = useState([]);
+  const [batchAnalysis, setBatchAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
 
-  // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
-      setFormData({
-        quantity: 1,
-        shipping_details: '',
-        tracking_number: '',
-        customer_info: ''
-      });
-      setErrors({});
+      setSelectedAssemblies([]);
+      setBatchAnalysis(null);
     }
   }, [isOpen]);
 
-  const validateForm = () => {
-    const newErrors = {};
-    
-    if (!formData.quantity || formData.quantity <= 0) {
-      newErrors.quantity = 'Quantity must be greater than 0';
+  useEffect(() => {
+    if (selectedAssemblies.length > 0) {
+      analyzeBatchBuild();
+    } else {
+      setBatchAnalysis(null);
     }
-    
-    if (formData.quantity > (assembly?.ready_built || 0)) {
-      newErrors.quantity = `Cannot ship more than available (${assembly?.ready_built || 0})`;
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+  }, [selectedAssemblies]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) {
+  const addAssemblyToBatch = (assembly) => {
+    const existing = selectedAssemblies.find(item => item.assembly_id === assembly._id);
+    if (existing) {
+      alert('Assembly already added to batch');
       return;
     }
-    
-    setLoading(true);
-    try {
-      console.log('Submitting ship data:', formData);
-      await onSubmit(formData);
-      onClose();
-    } catch (error) {
-      console.error('Error shipping assembly:', error);
-      setErrors({ 
-        general: error.response?.data?.error || 'Failed to ship assembly' 
+
+    setSelectedAssemblies(prev => [...prev, {
+      assembly_id: assembly._id,
+      assembly_data: assembly,
+      quantity: 1
+    }]);
+  };
+
+  const updateAssemblyQuantity = (assemblyId, quantity) => {
+    setSelectedAssemblies(prev => 
+      prev.map(item => 
+        item.assembly_id === assemblyId 
+          ? { ...item, quantity: Math.max(0, parseInt(quantity) || 0) }
+          : item
+      )
+    );
+  };
+
+  const removeAssemblyFromBatch = (assemblyId) => {
+    setSelectedAssemblies(prev => prev.filter(item => item.assembly_id !== assemblyId));
+  };
+
+  const analyzeBatchBuild = () => {
+    // Calculate total part requirements across all selected assemblies
+    const totalPartRequirements = {};
+    const assemblyDetails = [];
+
+    selectedAssemblies.forEach(item => {
+      if (item.quantity <= 0) return;
+
+      const assembly = item.assembly_data;
+      const quantity = item.quantity;
+
+      // Process BOM items for this assembly
+      assembly.bom_items?.forEach(bomItem => {
+        const partId = typeof bomItem.part_id === 'object' ? bomItem.part_id._id : bomItem.part_id;
+        const partData = typeof bomItem.part_id === 'object' ? bomItem.part_id : parts.find(p => p._id === partId);
+        
+        if (partData) {
+          const requiredQuantity = bomItem.quantity_required * quantity;
+          
+          if (!totalPartRequirements[partId]) {
+            totalPartRequirements[partId] = {
+              part_data: partData,
+              total_required: 0,
+              available_stock: partData.quantity_in_stock || 0,
+              assemblies_using: []
+            };
+          }
+          
+          totalPartRequirements[partId].total_required += requiredQuantity;
+          totalPartRequirements[partId].assemblies_using.push({
+            assembly_name: assembly.name,
+            assembly_id: assembly.assembly_id,
+            quantity_needed: requiredQuantity,
+            build_quantity: quantity
+          });
+        }
       });
-    } finally {
-      setLoading(false);
-    }
+
+      assemblyDetails.push({
+        assembly_id: assembly._id,
+        assembly_name: assembly.name,
+        assembly_code: assembly.assembly_id,
+        quantity: quantity,
+        bom_items_count: assembly.bom_items?.length || 0
+      });
+    });
+
+    // Calculate constraints and maximum buildable quantities
+    let globalMaxBuildable = Infinity;
+    const partConstraints = [];
+    const insufficientParts = [];
+
+    Object.entries(totalPartRequirements).forEach(([partId, requirement]) => {
+      const { part_data, total_required, available_stock } = requirement;
+      const canSupply = Math.floor(available_stock / total_required * selectedAssemblies.reduce((sum, item) => sum + item.quantity, 0));
+      
+      if (available_stock < total_required) {
+        insufficientParts.push({
+          part_name: part_data.name,
+          part_id: part_data.part_id,
+          total_required,
+          available_stock,
+          shortage: total_required - available_stock,
+          assemblies_using: requirement.assemblies_using
+        });
+      }
+
+      // Calculate how this part constrains the batch build
+      const partConstraint = available_stock / total_required;
+      if (partConstraint < globalMaxBuildable) {
+        globalMaxBuildable = partConstraint;
+      }
+
+      partConstraints.push({
+        part_name: part_data.name,
+        part_id: part_data.part_id,
+        required: total_required,
+        available: available_stock,
+        constraint_factor: partConstraint,
+        assemblies_using: requirement.assemblies_using
+      });
+    });
+
+    // Calculate maximum buildable for each assembly considering shared constraints
+    const maxBuildablePerAssembly = selectedAssemblies.map(item => {
+      let assemblyMaxBuildable = Infinity;
+      
+      item.assembly_data.bom_items?.forEach(bomItem => {
+        const partId = typeof bomItem.part_id === 'object' ? bomItem.part_id._id : bomItem.part_id;
+        const requirement = totalPartRequirements[partId];
+        
+        if (requirement) {
+          const partMaxForThisAssembly = Math.floor(
+            requirement.available_stock / bomItem.quantity_required
+          );
+          
+          // Consider shared usage across all assemblies in the batch
+          const sharedUsage = requirement.total_required / bomItem.quantity_required;
+          const adjustedMax = Math.floor(partMaxForThisAssembly / sharedUsage * item.quantity);
+          
+          if (adjustedMax < assemblyMaxBuildable) {
+            assemblyMaxBuildable = adjustedMax;
+          }
+        }
+      });
+
+      return {
+        assembly_id: item.assembly_id,
+        assembly_name: item.assembly_data.name,
+        requested_quantity: item.quantity,
+        max_buildable: assemblyMaxBuildable === Infinity ? item.quantity : Math.max(0, assemblyMaxBuildable)
+      };
+    });
+
+    setBatchAnalysis({
+      can_build_all: insufficientParts.length === 0,
+      total_assemblies: selectedAssemblies.length,
+      total_part_types: Object.keys(totalPartRequirements).length,
+      insufficient_parts: insufficientParts,
+      part_constraints: partConstraints.sort((a, b) => a.constraint_factor - b.constraint_factor),
+      assembly_details: assemblyDetails,
+      max_buildable_per_assembly: maxBuildablePerAssembly,
+      global_constraint_factor: globalMaxBuildable === Infinity ? 1 : globalMaxBuildable
+    });
   };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <h2 className="text-xl font-bold mb-4">Ship Assembly</h2>
-        <div className="mb-4">
-          <p className="text-gray-600">Assembly: <span className="font-semibold">{assembly?.name}</span></p>
-          <p className="text-gray-600">Assembly ID: <span className="font-semibold">{assembly?.assembly_id}</span></p>
-          <p className="text-gray-600">Available: <span className="font-semibold text-green-600">{assembly?.ready_built || 0}</span></p>
-        </div>
-
-        {errors.general && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-600 text-sm">{errors.general}</p>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Quantity to Ship *</label>
-            <input
-              type="number"
-              min="1"
-              max={assembly?.ready_built || 0}
-              value={formData.quantity}
-              onChange={(e) => setFormData({...formData, quantity: parseInt(e.target.value) || 1})}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                errors.quantity ? 'border-red-500' : 'border-gray-300'
-              }`}
-              required
-            />
-            {errors.quantity && <p className="text-red-500 text-sm mt-1">{errors.quantity}</p>}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Customer Information</label>
-            <textarea
-              value={formData.customer_info}
-              onChange={(e) => setFormData({...formData, customer_info: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              rows="2"
-              placeholder="Customer name, address, contact details, etc."
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tracking Number</label>
-            <input
-              type="text"
-              value={formData.tracking_number}
-              onChange={(e) => setFormData({...formData, tracking_number: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              placeholder="Shipping tracking number"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Shipping Details</label>
-            <textarea
-              value={formData.shipping_details}
-              onChange={(e) => setFormData({...formData, shipping_details: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              rows="3"
-              placeholder="Shipping method, carrier, special instructions, delivery date, etc."
-            />
-          </div>
-
-          <div className="flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading || (assembly?.ready_built || 0) === 0}
-              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
-            >
-              {loading ? 'Shipping...' : 'Ship Assembly'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-// Dismantle Assembly Modal Component
-const DismantleAssemblyModal = ({ isOpen, onClose, onSubmit, assembly }) => {
-  const [formData, setFormData] = useState({
-    quantity: 1,
-    reason: ''
-  });
-  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (formData.quantity > (assembly.ready_built || 0)) {
-      alert('Cannot dismantle more than ready-built quantity');
+    
+    if (selectedAssemblies.length === 0) {
+      alert('Please select at least one assembly');
       return;
     }
-    
-    if (!formData.reason.trim()) {
-      alert('Please provide a reason for dismantling');
-      return;
+
+    if (batchAnalysis && !batchAnalysis.can_build_all) {
+      if (!window.confirm('Some parts are insufficient. Do you want to proceed anyway? This may partially complete some builds.')) {
+        return;
+      }
     }
-    
+
     setLoading(true);
     try {
-      await onSubmit(formData);
+      await onSubmit({
+        items: selectedAssemblies.filter(item => item.quantity > 0)
+      });
     } catch (error) {
-      console.error('Error dismantling assembly:', error);
+      console.error('Error in batch build:', error);
+      alert('Batch build failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -985,10 +791,10 @@ const DismantleAssemblyModal = ({ isOpen, onClose, onSubmit, assembly }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl mx-4 max-h-[95vh] overflow-hidden flex flex-col">
         <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900">Dismantle Assembly</h2>
+            <h2 className="text-xl font-bold text-gray-900">Batch Assembly Build</h2>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600 text-2xl"
@@ -996,588 +802,222 @@ const DismantleAssemblyModal = ({ isOpen, onClose, onSubmit, assembly }) => {
               ×
             </button>
           </div>
-          <div className="mt-2">
-            <p className="text-gray-600">Assembly: <span className="font-semibold">{assembly?.name}</span></p>
-            <p className="text-gray-600">Available: <span className="font-semibold text-green-600">{assembly?.ready_built || 0}</span></p>
-            <p className="text-sm text-yellow-600 mt-2">
-              ⚠️ Dismantling will restore all parts to inventory according to the BOM
-            </p>
-          </div>
+          <p className="text-sm text-gray-600 mt-1">
+            Select multiple assemblies to build together. The system will analyze shared part dependencies.
+          </p>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Quantity to Dismantle *</label>
-              <input
-                type="number"
-                min="1"
-                max={assembly?.ready_built || 0}
-                value={formData.quantity}
-                onChange={(e) => setFormData({...formData, quantity: parseInt(e.target.value)})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                required
-              />
-            </div>
+        <div className="flex-1 overflow-y-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6">
+            {/* Assembly Selection */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium text-gray-900">Available Assemblies</h3>
+              
+              <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg">
+                {assemblies.filter(a => a.is_active && a.bom_items?.length > 0).map(assembly => (
+                  <div key={assembly._id} className="flex items-center justify-between p-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">{assembly.name}</div>
+                      <div className="text-sm text-gray-500">
+                        {assembly.assembly_id} | {assembly.bom_items?.length || 0} parts | {assembly.ready_built || 0} ready
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => addAssemblyToBatch(assembly)}
+                      className="ml-3 bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                    >
+                      Add
+                    </button>
+                  </div>
+                ))}
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Reason for Dismantling *</label>
-              <textarea
-                value={formData.reason}
-                onChange={(e) => setFormData({...formData, reason: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                rows="3"
-                placeholder="e.g., Defective units, Design change, Quality issues, etc."
-                required
-              />
-            </div>
-
-            {assembly?.bom_items && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-blue-900 mb-3">Parts that will be restored:</h4>
-                <div className="max-h-60 overflow-y-auto">
+              {/* Selected Assemblies */}
+              <div className="mt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">
+                  Selected Assemblies ({selectedAssemblies.length})
+                </h3>
+                
+                {selectedAssemblies.length > 0 ? (
                   <div className="space-y-2">
-                    {assembly.bom_items.map((item, index) => {
-                      const partName = typeof item.part_id === 'object' ? item.part_id.name : 'Unknown';
-                      const partUnit = typeof item.part_id === 'object' ? item.part_id.unit : 'pcs';
-                      const restoreQty = item.quantity_required * formData.quantity;
-                      const currentStock = typeof item.part_id === 'object' ? item.part_id.quantity_in_stock : 0;
-                      const newStock = currentStock + restoreQty;
-                      
-                      return (
-                        <div key={index} className="flex justify-between items-center py-2 px-3 bg-blue-100 rounded">
+                    {selectedAssemblies.map(item => (
+                      <div key={item.assembly_id} className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex-1">
+                          <div className="font-medium text-blue-900">{item.assembly_data.name}</div>
+                          <div className="text-sm text-blue-700">{item.assembly_data.assembly_id}</div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => updateAssemblyQuantity(item.assembly_id, e.target.value)}
+                            min="0"
+                            className="w-16 px-2 py-1 border border-gray-300 rounded text-sm text-center"
+                          />
+                          <button
+                            onClick={() => removeAssemblyFromBatch(item.assembly_id)}
+                            className="text-red-600 hover:text-red-800 text-sm"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
+                    <div className="text-4xl mb-2">⚙️</div>
+                    <div>No assemblies selected</div>
+                    <div className="text-sm">Add assemblies from the list above</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Analysis Results */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium text-gray-900">Batch Analysis</h3>
+              
+              {batchAnalysis ? (
+                <div className="space-y-4">
+                  {/* Summary Card */}
+                  <div className={`p-4 rounded-lg border-2 ${
+                    batchAnalysis.can_build_all 
+                      ? 'bg-green-50 border-green-200' 
+                      : 'bg-red-50 border-red-200'
+                  }`}>
+                    <div className={`text-lg font-medium ${
+                      batchAnalysis.can_build_all ? 'text-green-800' : 'text-red-800'
+                    }`}>
+                      {batchAnalysis.can_build_all ? '✅ All Assemblies Can Be Built' : '❌ Insufficient Parts'}
+                    </div>
+                    <div className="mt-2 grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-600">Assemblies:</span>
+                        <span className="ml-1 font-medium">{batchAnalysis.total_assemblies}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Part Types:</span>
+                        <span className="ml-1 font-medium">{batchAnalysis.total_part_types}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Build Factor:</span>
+                        <span className="ml-1 font-medium">
+                          {(batchAnalysis.global_constraint_factor * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Max Buildable Per Assembly */}
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-gray-900 mb-3">Maximum Buildable Quantities</h4>
+                    <div className="space-y-2">
+                      {batchAnalysis.max_buildable_per_assembly.map(item => (
+                        <div key={item.assembly_id} className="flex justify-between items-center p-2 bg-white rounded border">
+                          <span className="font-medium">{item.assembly_name}</span>
+                          <div className="text-right">
+                            <span className="text-sm text-gray-600">Requested: {item.requested_quantity}</span>
+                            <div className={`font-medium ${
+                              item.max_buildable >= item.requested_quantity ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              Max: {item.max_buildable}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Insufficient Parts */}
+                  {batchAnalysis.insufficient_parts.length > 0 && (
+                    <div className="bg-red-50 p-4 rounded-lg">
+                      <h4 className="font-medium text-red-800 mb-3">Insufficient Parts</h4>
+                      <div className="space-y-3 max-h-40 overflow-y-auto">
+                        {batchAnalysis.insufficient_parts.map((part, index) => (
+                          <div key={index} className="p-3 bg-white rounded border-l-4 border-red-400">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <div className="font-medium text-red-900">{part.part_name}</div>
+                                <div className="text-sm text-red-700">
+                                  Required: {part.total_required} | Available: {part.available_stock} | Short: {part.shortage}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="mt-2 text-xs text-red-600">
+                              Used by: {part.assemblies_using.map(a => `${a.assembly_name} (${a.quantity_needed})`).join(', ')}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Top Constraints */}
+                  <div className="bg-yellow-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-yellow-800 mb-3">Top Part Constraints</h4>
+                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                      {batchAnalysis.part_constraints.slice(0, 5).map((constraint, index) => (
+                        <div key={index} className="flex justify-between items-center p-2 bg-white rounded">
                           <div>
-                            <span className="font-medium text-blue-900">{partName}</span>
-                            <div className="text-xs text-blue-700">
-                              Will restore: {restoreQty} {partUnit}
+                            <span className="font-medium">{constraint.part_name}</span>
+                            <div className="text-sm text-gray-600">
+                              {constraint.required} needed, {constraint.available} available
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="text-xs text-blue-700">
-                              Stock: {currentStock} → {newStock} {partUnit}
+                            <div className={`text-sm font-medium ${
+                              constraint.constraint_factor >= 1 ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {(constraint.constraint_factor * 100).toFixed(1)}%
                             </div>
-                            {newStock > (item.part_id?.min_stock_level || 0) && (
-                              <div className="text-xs text-green-600 font-medium">
-                                ✓ Above min level
-                              </div>
-                            )}
                           </div>
                         </div>
-                      );
-                    })}
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* Impact Summary */}
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-orange-800 mb-2">Dismantle Impact</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <span className="text-orange-700">Units to Dismantle:</span>
-                  <span className="ml-2 font-medium">{formData.quantity}</span>
+              ) : (
+                <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
+                  <div className="text-4xl mb-2">📊</div>
+                  <div>Select assemblies to see analysis</div>
+                  <div className="text-sm">Analysis will show part dependencies and constraints</div>
                 </div>
-                <div>
-                  <span className="text-orange-700">Parts to Restore:</span>
-                  <span className="ml-2 font-medium">{assembly?.bom_items?.length || 0} types</span>
-                </div>
-                <div>
-                  <span className="text-orange-700">After Dismantle:</span>
-                  <span className="ml-2 font-medium text-orange-600">
-                    {(assembly?.ready_built || 0) - formData.quantity} ready
-                  </span>
-                </div>
-              </div>
+              )}
             </div>
-
-            {/* BOM Items Details Table */}
-            {assembly?.bom_items && assembly.bom_items.length > 0 && (
-              <div className="border border-gray-200 rounded-lg">
-                <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-                  <h4 className="text-sm font-medium text-gray-900">Detailed Parts Restoration</h4>
-                </div>
-                <div className="max-h-80 overflow-y-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50 sticky top-0">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Part</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Per Unit</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Total Restore</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Stock Impact</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {assembly.bom_items.map((item, index) => {
-                        const partName = typeof item.part_id === 'object' ? item.part_id.name : 'Unknown';
-                        const partUnit = typeof item.part_id === 'object' ? item.part_id.unit : 'pcs';
-                        const currentStock = typeof item.part_id === 'object' ? item.part_id.quantity_in_stock : 0;
-                        const restoreQty = item.quantity_required * formData.quantity;
-                        const newStock = currentStock + restoreQty;
-
-                        return (
-                          <tr key={index} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm text-gray-900">{partName}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{item.quantity_required} {partUnit}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900 font-medium text-green-600">
-                              +{restoreQty} {partUnit}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-900">
-                              {currentStock} → {newStock} {partUnit}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </form>
+          </div>
         </div>
 
+        {/* Action Buttons */}
         <div className="px-6 py-4 border-t border-gray-200 flex-shrink-0">
-          <div className="flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={loading}
-              className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50"
-            >
-              {loading ? 'Dismantling...' : 'Dismantle Assembly'}
-            </button>
+          <div className="flex justify-between items-center">
+            <div className="text-sm text-gray-600">
+              {selectedAssemblies.length > 0 && batchAnalysis && (
+                <span>
+                  {batchAnalysis.can_build_all ? 
+                    `Ready to build ${selectedAssemblies.reduce((sum, item) => sum + item.quantity, 0)} assemblies` :
+                    `${batchAnalysis.insufficient_parts.length} parts insufficient`
+                  }
+                </span>
+              )}
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={loading || selectedAssemblies.length === 0 || selectedAssemblies.every(item => item.quantity === 0)}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Building...' : 'Build All'}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
-};
-
-// View Assembly Modal Component  
-const ViewAssemblyModal = ({ isOpen, onClose, assembly, onEdit }) => {
-  if (!isOpen || !assembly) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900">Assembly Details</h2>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 text-2xl"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-
-        <div className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Assembly ID</label>
-              <p className="mt-1 text-sm text-gray-900">{assembly.assembly_id}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Name</label>
-              <p className="mt-1 text-sm text-gray-900">{assembly.name}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Category</label>
-              <p className="mt-1 text-sm text-gray-900">{assembly.category}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Status</label>
-              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                assembly.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-              }`}>
-                {assembly.is_active ? 'Active' : 'Inactive'}
-              </span>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Description</label>
-            <p className="mt-1 text-sm text-gray-900">{assembly.description || 'No description'}</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Ready Built</label>
-              <p className="mt-1 text-2xl font-bold text-green-600">{assembly.ready_built || 0}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Total Shipped</label>
-              <p className="mt-1 text-2xl font-bold text-purple-600">{assembly.total_shipped || 0}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Total Dismantled</label>
-              <p className="mt-1 text-2xl font-bold text-orange-600">{assembly.total_dismantled || 0}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Total Built</label>
-              <p className="mt-1 text-2xl font-bold text-gray-900">
-                {(assembly.ready_built || 0) + (assembly.total_shipped || 0)}
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Notes</label>
-            <p className="mt-1 text-sm text-gray-900">{assembly.notes || 'No notes'}</p>
-          </div>
-
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              Close
-            </button>
-            <button
-              onClick={onEdit}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-            >
-              Edit Assembly
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Create Assembly Modal Component
-const CreateAssemblyModal = ({ isOpen, onClose, onSubmit }) => {
-  const [formData, setFormData] = useState({
-    assembly_id: '',
-    name: '',
-    description: '',
-    category: '',
-    is_active: true,
-    notes: ''
-  });
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
-
-  const resetForm = () => {
-    setFormData({
-      assembly_id: '',
-      name: '',
-      description: '',
-      category: '',
-      is_active: true,
-      notes: ''
-    });
-    setErrors({});
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!formData.name.trim()) {
-      setErrors({ name: 'Assembly name is required' });
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      // If assembly_id is empty, let the backend generate it
-      const submitData = { ...formData };
-      if (!submitData.assembly_id.trim()) {
-        delete submitData.assembly_id;
-      }
-      await onSubmit(submitData);
-      resetForm();
-      onClose();
-    } catch (error) {
-      console.error('Error creating assembly:', error);
-      setErrors({ 
-        general: error.response?.data?.error || 'Failed to create assembly' 
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Reset form when modal opens/closes
-  useEffect(() => {
-    if (isOpen) {
-      resetForm();
-    }
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <h2 className="text-xl font-bold mb-4">Create New Assembly</h2>
-        
-        {errors.general && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-600 text-sm">{errors.general}</p>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Assembly ID <span className="text-gray-500 text-xs">(Optional - will auto-generate)</span>
-            </label>
-            <input
-              type="text"
-              value={formData.assembly_id}
-              onChange={(e) => setFormData({ ...formData, assembly_id: e.target.value.toUpperCase() })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              placeholder="e.g., ASM0001"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                errors.name ? 'border-red-500' : 'border-gray-300'
-              }`}
-              placeholder="Enter assembly name"
-              required
-            />
-            {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              rows="3"
-              placeholder="Describe what this assembly is for"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-            <select
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              style={{ maxHeight: '200px', overflowY: 'auto' }}
-            >
-              <option value="">Select category</option>
-              <option value="Mechanical">Mechanical</option>
-              <option value="Electrical">Electrical</option>
-              <option value="Electronic">Electronic</option>
-              <option value="Plastic">Plastic</option>
-              <option value="Metal">Metal</option>
-              <option value="Assembly">Assembly</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              rows="2"
-              placeholder="Additional notes about this assembly"
-            />
-          </div>
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="is_active"
-              checked={formData.is_active}
-              onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-              className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-            />
-            <label htmlFor="is_active" className="ml-2 block text-sm text-gray-900">
-              Active assembly
-            </label>
-          </div>
-          <div className="flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
-            >
-              {loading ? 'Creating...' : 'Create Assembly'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-// Edit Assembly Modal Component
-const EditAssemblyModal = ({ isOpen, onClose, onSubmit, assembly }) => {
-  const [formData, setFormData] = useState({
-    assembly_id: assembly?.assembly_id || '',
-    name: assembly?.name || '',
-    description: assembly?.description || '',
-    category: assembly?.category || '',
-    is_active: assembly?.is_active !== undefined ? assembly.is_active : true,
-    notes: assembly?.notes || ''
-  });
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
-
-  useEffect(() => {
-    if (assembly) {
-      setFormData({
-        assembly_id: assembly.assembly_id || '',
-        name: assembly.name || '',
-        description: assembly.description || '',
-        category: assembly.category || '',
-        is_active: assembly.is_active !== undefined ? assembly.is_active : true,
-        notes: assembly.notes || ''
-      });
-    }
-    setErrors({});
-  }, [assembly]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!formData.name.trim()) {
-      setErrors({ name: 'Assembly name is required' });
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      await onSubmit(formData);
-      onClose();
-    } catch (error) {
-      console.error('Error updating assembly:', error);
-      setErrors({ 
-        general: error.response?.data?.error || 'Failed to update assembly' 
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <h2 className="text-xl font-bold mb-4">Edit Assembly</h2>
-        
-        {errors.general && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-600 text-sm">{errors.general}</p>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Assembly ID</label>
-            <input
-              type="text"
-              value={formData.assembly_id}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600"
-              readOnly
-            />
-            <p className="text-xs text-gray-500 mt-1">Assembly ID cannot be changed</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                errors.name ? 'border-red-500' : 'border-gray-300'
-              }`}
-              required
-            />
-            {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              rows="3"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-            <select
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              style={{ maxHeight: '200px', overflowY: 'auto' }}
-            >
-              <option value="">Select category</option>
-              <option value="Mechanical">Mechanical</option>
-              <option value="Electrical">Electrical</option>
-              <option value="Electronic">Electronic</option>
-              <option value="Plastic">Plastic</option>
-              <option value="Metal">Metal</option>
-              <option value="Assembly">Assembly</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              rows="2"
-              placeholder="Additional notes about this assembly"
-            />
-          </div>
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="edit_is_active"
-              checked={formData.is_active}
-              onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-              className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-            />
-            <label htmlFor="edit_is_active" className="ml-2 block text-sm text-gray-900">
-              Active assembly
-            </label>
-          </div>
-          <div className="flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
-            >
-              {loading ? 'Updating...' : 'Update Assembly'}
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   );
