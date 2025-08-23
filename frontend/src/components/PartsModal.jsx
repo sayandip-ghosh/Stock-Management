@@ -233,12 +233,13 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
                   style={{ maxHeight: '200px', overflowY: 'auto' }}
                 >
                   <option value="">Select a type</option>
-                  <option value="Mechanical">Mechanical</option>
-                  <option value="Electrical">Electrical</option>
-                  <option value="Electronic">Electronic</option>
-                  <option value="Plastic">Plastic</option>
-                  <option value="Metal">Metal</option>
-                  <option value="Other">Other</option>
+                  <option value="Copper">Copper</option>
+                  <option value="GI">GI (Galvanized Iron)</option>
+                  <option value="SS">SS (Stainless Steel)</option>
+                  <option value="Brass">Brass</option>
+                  <option value="PB">PB (Phosphorus Bronze)</option>
+                  <option value="Aluminium">Aluminium</option>
+                  <option value="Nylon">Nylon</option>
                 </select>
               )}
               {errors.type && <p className="text-red-500 text-sm mt-1">{errors.type}</p>}

@@ -16,8 +16,8 @@ const partSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['Mechanical', 'Electrical', 'Electronic', 'Plastic', 'Metal', 'Other'],
-    default: 'Other'
+    enum: ['Copper', 'GI', 'SS', 'Brass', 'PB', 'Aluminium', 'Nylon'],
+    default: 'Copper'
   },
   description: {
     type: String,
@@ -56,7 +56,11 @@ const partSchema = new mongoose.Schema({
   category: {
     type: String,
     trim: true,
-    maxlength: 50
+    enum: ['Copper', 'GI', 'SS', 'Brass', 'PB', 'Aluminium', 'Nylon'],
+    maxlength: 50,
+    default: function() {
+      return this.type || 'Copper';
+    }
   },
   is_active: {
     type: Boolean,

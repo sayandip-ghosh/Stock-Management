@@ -5,18 +5,14 @@ const StockTransaction = require('../models/StockTransaction');
 // Validation middleware
 const validatePart = [
   body('name').trim().isLength({ min: 1, max: 100 }).withMessage('Name is required and must be less than 100 characters'),
-  body('type').isIn(['Mechanical', 'Electrical', 'Electronic', 'Plastic', 'Metal', 'Other']).withMessage('Invalid part type'),
+  body('type').isIn(['Copper', 'GI', 'SS', 'Brass', 'PB', 'Aluminium', 'Nylon']).withMessage('Valid type is required'),
   body('description').optional().trim().isLength({ max: 500 }).withMessage('Description must be less than 500 characters'),
   body('unit').trim().isLength({ min: 1, max: 20 }).withMessage('Unit is required and must be less than 20 characters'),
   body('quantity_in_stock').isFloat({ min: 0 }).withMessage('Quantity must be a non-negative number'),
   body('min_stock_level').isFloat({ min: 0 }).withMessage('Minimum stock level must be a non-negative number'),
-  body('max_stock_level').optional().isFloat({ min: 0 }).withMessage('Maximum stock level must be a non-negative number'),
-
   body('cost_per_unit').optional().isFloat({ min: 0 }).withMessage('Cost per unit must be a non-negative number'),
   body('location').optional().trim().isLength({ max: 100 }).withMessage('Location must be less than 100 characters'),
-  body('category').optional().trim().isLength({ max: 50 }).withMessage('Category must be less than 50 characters'),
-  body('notes').optional().trim().isLength({ max: 500 }).withMessage('Notes must be less than 500 characters'),
-  body('is_active').optional().isBoolean().withMessage('is_active must be a boolean')
+  body('category').optional().isIn(['Copper', 'GI', 'SS', 'Brass', 'PB', 'Aluminium', 'Nylon']).withMessage('Invalid category')
 ];
 
 // Get all parts with pagination and search

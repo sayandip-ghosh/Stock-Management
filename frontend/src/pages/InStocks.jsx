@@ -24,6 +24,11 @@ const InStocks = () => {
   const [isEditPartsModalOpen, setIsEditPartsModalOpen] = useState(false);
   const [isViewAllPendingOrdersModalOpen, setIsViewAllPendingOrdersModalOpen] = useState(false);
 
+  // Filter options for part types
+  const partTypeOptions = [
+    'Copper', 'GI', 'SS', 'Brass', 'PB', 'Aluminium', 'Nylon'
+  ];
+
   useEffect(() => {
     fetchData();
     fetchPendingOrders();
@@ -175,7 +180,7 @@ const InStocks = () => {
 
   const filteredParts = parts.filter(part =>
     part.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    part.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    part.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     part.part_id?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -456,7 +461,7 @@ const InStocks = () => {
                             </button>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{part.category || 'Uncategorized'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{part.type || 'Uncategorized'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">{quantity}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{minLevel}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{part.unit || 'pcs'}</td>
@@ -794,13 +799,13 @@ const ViewAllPendingOrdersModal = ({ isOpen, onClose, orders, onReceiveItems, on
                         <span>📦</span>
                         <span>Receive</span>
                       </button>
-                      <button
+                      {/* <button
                         onClick={() => onViewOrder(order)}
                         className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 flex items-center justify-center space-x-1"
                       >
                         <span>👁️</span>
                         <span>View</span>
-                      </button>
+                      </button> */}
                     </div>
                   </div>
                 );
