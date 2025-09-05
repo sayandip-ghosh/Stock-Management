@@ -42,7 +42,11 @@ const Assembly = () => {
         console.log('Sample assembly BOM items:', assembliesResponse.data.data[0].bom_items);
       }
 
-      setAssemblies(assembliesResponse.data.data || []);
+      // Handle both paginated response format and direct array format
+      const assembliesData = assembliesResponse.data.data || assembliesResponse.data || [];
+      console.log(`Total assemblies fetched: ${assembliesData.length}`);
+
+      setAssemblies(assembliesData);
       setParts(partsResponse.data.parts || []);
     } catch (err) {
       console.error('Error fetching data:', err);

@@ -72,8 +72,26 @@ export const partsAPI = {
     return api.get(`/parts?${searchParams}`);
   },
   getById: (id) => api.get(`/parts/${id}`),
-  create: (data) => api.post('/parts', data),
-  update: (id, data) => api.put(`/parts/${id}`, data),
+  create: (data) => {
+    console.log('Creating part with data:', data);
+    // Ensure type defaults to one of valid categories if not provided
+    const createData = {
+      ...data,
+      type: data.type || 'Copper',
+      category: data.category || data.type || 'Copper'
+    };
+    return api.post('/parts', createData);
+  },
+  update: (id, data) => {
+    console.log('Updating part with data:', data);
+    // Ensure type is one of valid categories
+    const updateData = {
+      ...data,
+      type: data.type || 'Copper',
+      category: data.category || data.type || 'Copper'
+    };
+    return api.put(`/parts/${id}`, updateData);
+  },
   delete: (id) => api.delete(`/parts/${id}`),
   getLowStock: () => api.get('/parts/alerts/low-stock'),
   updateStock: (id, data) => api.post(`/parts/${id}/stock`, data),
@@ -84,7 +102,15 @@ export const partsAPI = {
 
 // Assemblies API
 export const assembliesAPI = {
-  getAll: () => api.get('/assemblies'),
+  getAll: (params = {}) => {
+    // For getting all assemblies without pagination (used in assembly management)
+    const searchParams = new URLSearchParams({
+      limit: '1000', // Set a high limit to get all assemblies
+      page: '1',
+      ...params
+    });
+    return api.get(`/assemblies?${searchParams}`);
+  },
   getById: (id) => api.get(`/assemblies/${id}`),
   create: (data) => api.post('/assemblies', data),
   update: (id, data) => api.put(`/assemblies/${id}`, data),
@@ -95,6 +121,8 @@ export const assembliesAPI = {
   ship: (id, data) => api.post(`/assemblies/${id}/ship`, data),
   dismantle: (id, data) => api.post(`/assemblies/${id}/dismantle`, data),
   getStats: () => api.get('/assemblies/stats/summary'),
+  // Add a paginated version for when we actually need pagination
+  getPaginated: (params = {}) => api.get('/assemblies', { params })
 };
 
 // Products API
