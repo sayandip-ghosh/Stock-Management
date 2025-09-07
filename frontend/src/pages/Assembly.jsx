@@ -1699,6 +1699,7 @@ const BatchBuildModal = ({ isOpen, onClose, onSubmit, assemblies, parts }) => {
   const [selectedAssemblies, setSelectedAssemblies] = useState([]);
   const [batchAnalysis, setBatchAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [isDetailedPartsModalOpen, setIsDetailedPartsModalOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -2040,7 +2041,18 @@ const BatchBuildModal = ({ isOpen, onClose, onSubmit, assemblies, parts }) => {
                   {/* Insufficient Parts */}
                   {batchAnalysis.insufficient_parts.length > 0 && (
                     <div className="bg-red-50 p-4 rounded-lg">
-                      <h4 className="font-medium text-red-800 mb-3">Insufficient Parts</h4>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-red-800">Insufficient Parts</h4>
+                        <button
+                          onClick={() => setIsDetailedPartsModalOpen(true)}
+                          className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-100 transition-colors"
+                          title="View detailed parts information"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                          </svg>
+                        </button>
+                      </div>
                       <div className="space-y-3 max-h-40 overflow-y-auto">
                         {batchAnalysis.insufficient_parts.map((part, index) => (
                           <div key={index} className="p-3 bg-white rounded border-l-4 border-red-400">
@@ -2124,6 +2136,157 @@ const BatchBuildModal = ({ isOpen, onClose, onSubmit, assemblies, parts }) => {
                 {loading ? 'Building...' : 'Build All'}
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Detailed Insufficient Parts Modal */}
+      {isDetailedPartsModalOpen && batchAnalysis && (
+        <DetailedInsufficientPartsModal
+          isOpen={isDetailedPartsModalOpen}
+          onClose={() => setIsDetailedPartsModalOpen(false)}
+          insufficientParts={batchAnalysis.insufficient_parts}
+        />
+      )}
+    </div>
+  );
+};
+
+// Detailed Insufficient Parts Modal Component
+const DetailedInsufficientPartsModal = ({ isOpen, onClose, insufficientParts }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-red-800">Detailed Insufficient Parts Analysis</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Complete breakdown of all parts that are insufficient for the batch build
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="space-y-6">
+            {/* Summary Statistics */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                <div className="text-sm font-medium text-red-700">Total Insufficient Parts</div>
+                <div className="text-2xl font-bold text-red-800">{insufficientParts.length}</div>
+              </div>
+              <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                <div className="text-sm font-medium text-orange-700">Total Shortage</div>
+                <div className="text-2xl font-bold text-orange-800">
+                  {insufficientParts.reduce((total, part) => total + part.shortage, 0)}
+                </div>
+              </div>
+              <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                <div className="text-sm font-medium text-yellow-700">Total Required</div>
+                <div className="text-2xl font-bold text-yellow-800">
+                  {insufficientParts.reduce((total, part) => total + part.total_required, 0)}
+                </div>
+              </div>
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <div className="text-sm font-medium text-blue-700">Total Available</div>
+                <div className="text-2xl font-bold text-blue-800">
+                  {insufficientParts.reduce((total, part) => total + part.available_stock, 0)}
+                </div>
+              </div>
+            </div>
+
+            {/* Detailed Parts Table */}
+            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <h3 className="text-lg font-semibold text-gray-900">Part Details</h3>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Part Information
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Quantities
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Shortage
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Used By Assemblies
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {insufficientParts.map((part, index) => (
+                      <tr key={index} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{part.part_name}</div>
+                            <div className="text-sm text-gray-500">{part.part_id}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="space-y-1">
+                            <div className="text-sm">
+                              <span className="text-gray-600">Required:</span>
+                              <span className="ml-2 font-medium text-red-600">{part.total_required}</span>
+                            </div>
+                            <div className="text-sm">
+                              <span className="text-gray-600">Available:</span>
+                              <span className="ml-2 font-medium text-green-600">{part.available_stock}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-sm font-medium">
+                              -{part.shortage}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="space-y-2">
+                            {part.assemblies_using.map((assembly, assemblyIndex) => (
+                              <div key={assemblyIndex} className="bg-blue-50 border border-blue-200 rounded p-2">
+                                <div className="text-sm font-medium text-blue-900">
+                                  {assembly.assembly_name}
+                                </div>
+                                <div className="text-xs text-blue-700">
+                                  ID: {assembly.assembly_id} | Needs: {assembly.quantity_needed} units | Build Qty: {assembly.build_quantity}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-200 flex-shrink-0">
+          <div className="flex justify-end">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+            >
+              Close
+            </button>
           </div>
         </div>
       </div>
