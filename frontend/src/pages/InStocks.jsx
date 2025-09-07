@@ -238,22 +238,8 @@ const InStocks = () => {
     <Layout>
       <div className="space-y-6">
         {/* Page Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">Stock Management</h1>
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search by name, ID, or category"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              />
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <span className="text-gray-400">🔍</span>
-              </div>
-            </div>
-          </div>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Stock Management</h1>
         </div>
 
         {/* Stats Cards */}
@@ -387,38 +373,52 @@ const InStocks = () => {
 
         {/* Stock Table */}
         <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <div className="flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
               <h2 className="text-lg font-semibold text-gray-900">Current Stock Levels</h2>
-              <div className="flex items-center space-x-3">
-                <button 
-                  onClick={() => setIsPurchaseOrderModalOpen(true)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Create Purchase Order
-                </button>
-                <button 
-                  onClick={() => setIsPartsModalOpen(true)}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  Add New Part
-                </button>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+                <div className="relative flex-1 lg:flex-none">
+                  <input
+                    type="text"
+                    placeholder="Search by name, ID, or category"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full lg:w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className="text-gray-400">🔍</span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setIsPurchaseOrderModalOpen(true)}
+                    className="flex-1 sm:flex-none bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base"
+                  >
+                    <span className="sm:hidden">📋</span>
+                    <span className="hidden sm:inline">Create Purchase Order</span>
+                  </button>
+                  <button 
+                    onClick={() => setIsPartsModalOpen(true)}
+                    className="flex-1 sm:flex-none bg-green-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm sm:text-base"
+                  >
+                    <span className="sm:hidden">➕</span>
+                    <span className="hidden sm:inline">Add New Part</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
           
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-96 overflow-y-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Part ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Stock</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Min Stock</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Part ID</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
+                  <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -442,39 +442,47 @@ const InStocks = () => {
 
                     return (
                       <tr key={part._id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+                          <div className="block sm:hidden text-xs text-gray-500 mb-1">{part.type || 'Uncategorized'}</div>
                           {part.part_id || 'N/A'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center mr-3">
+                        <td className="px-3 sm:px-6 py-4">
+                          <div className="flex items-start">
+                            <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
                               <span className="text-gray-600 text-xs">📦</span>
                             </div>
-                            <button
-                              onClick={() => {
-                                setSelectedPartForEdit(part);
-                                setIsEditPartsModalOpen(true);
-                              }}
-                              className="text-sm text-gray-900 hover:text-purple-600 hover:underline text-left"
-                            >
-                              {part.name || 'Unnamed Part'}
-                            </button>
+                            <div className="min-w-0 flex-1">
+                              <button
+                                onClick={() => {
+                                  setSelectedPartForEdit(part);
+                                  setIsEditPartsModalOpen(true);
+                                }}
+                                className="text-sm text-gray-900 hover:text-purple-600 hover:underline text-left block truncate"
+                              >
+                                {part.name || 'Unnamed Part'}
+                              </button>
+                              <div className="text-xs text-gray-500 mt-1">
+                                Min: {minLevel} {part.unit || 'pcs'}
+                              </div>
+                            </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{part.type || 'Uncategorized'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">{quantity}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{minLevel}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{part.unit || 'pcs'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{part.type || 'Uncategorized'}</td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900 font-medium">{quantity}</div>
+                          <div className="text-xs text-gray-500">{part.unit || 'pcs'}</div>
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusClass}`}>
-                            {statusText}
+                            <span className="sm:hidden">{statusText.charAt(0)}</span>
+                            <span className="hidden sm:inline">{statusText}</span>
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <div className="flex items-center space-x-2">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-1 sm:space-y-0 sm:space-x-2">
                             <button 
                               onClick={() => handleViewHistory(part)}
-                              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                              className="text-blue-600 hover:text-blue-800 text-xs sm:text-sm font-medium"
                             >
                               History
                             </button>
@@ -484,7 +492,7 @@ const InStocks = () => {
                                   setSelectedPart(part);
                                   setIsWithdrawModalOpen(true);
                                 }}
-                                className="text-red-600 hover:text-red-800 text-sm font-medium"
+                                className="text-red-600 hover:text-red-800 text-xs sm:text-sm font-medium"
                               >
                                 Withdraw
                               </button>
@@ -496,7 +504,7 @@ const InStocks = () => {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="8" className="px-6 py-4 text-center">
+                    <td colSpan="6" className="px-3 sm:px-6 py-4 text-center">
                       <div className="py-8">
                         <div className="text-gray-400 text-4xl mb-4">📦</div>
                         <div className="text-gray-500 text-lg font-medium mb-2">
