@@ -21,6 +21,16 @@ const purchaseOrderItemSchema = new mongoose.Schema({
     default: 0,
     min: 0
   },
+  cost_unit_type: {
+    type: String,
+    enum: ['piece', 'kg'],
+    default: 'piece'
+  },
+  cost_per_unit_input: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
   total_cost: {
     type: Number,
     default: 0,
@@ -152,10 +162,37 @@ purchaseOrderSchema.pre('save', async function(next) {
   // Calculate item totals and order total
   this.total_amount = 0;
   if (this.items && this.items.length > 0) {
-    this.items.forEach(item => {
-      item.total_cost = (item.quantity_ordered || 0) * (item.unit_cost || 0);
-      this.total_amount += item.total_cost;
-    });
+    for (let item of this.items) {
+      try {
+        // Handle cost conversion based on unit type
+        if (item.cost_unit_type === 'kg' && item.cost_per_unit_input) {
+          // Find the part to get its weight
+          const Part = mongoose.model('Part');
+          const part = await Part.findById(item.part_id);
+          
+          if (part && part.weight > 0) {
+            // Convert cost per kg to cost per piece
+            item.unit_cost = item.cost_per_unit_input * part.weight;
+          } else {
+            // If no weight is available, use the input value directly
+            item.unit_cost = item.cost_per_unit_input;
+          }
+        } else {
+          // Use the input value directly for 'piece' unit type
+          item.unit_cost = item.cost_per_unit_input || 0;
+        }
+        
+        // Calculate total cost for this item
+        item.total_cost = (item.quantity_ordered || 0) * (item.unit_cost || 0);
+        this.total_amount += item.total_cost;
+      } catch (error) {
+        console.error('Error calculating item cost:', error);
+        // Fallback to direct calculation
+        item.unit_cost = item.cost_per_unit_input || 0;
+        item.total_cost = (item.quantity_ordered || 0) * (item.unit_cost || 0);
+        this.total_amount += item.total_cost;
+      }
+    }
   }
   
   next();

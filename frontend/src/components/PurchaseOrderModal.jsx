@@ -75,7 +75,10 @@ const PurchaseOrderModal = ({ isOpen, onClose, onSave, purchaseOrder = null }) =
       part_name: part.name,
       part_number: part.part_id,
       unit: part.unit,
+      part_weight: part.weight || 0,
       quantity_ordered: 1,
+      cost_unit_type: 'piece',
+      cost_per_unit_input: part.cost_per_unit || 0,
       unit_cost: part.cost_per_unit || 0,
       total_cost: part.cost_per_unit || 0,
       notes: ''
@@ -122,7 +125,10 @@ const PurchaseOrderModal = ({ isOpen, onClose, onSave, purchaseOrder = null }) =
       part_name: '',
       part_number: '',
       unit: 'pcs',
+      part_weight: 0,
       quantity_ordered: 1,
+      cost_unit_type: 'piece',
+      cost_per_unit_input: 0,
       unit_cost: 0,
       total_cost: 0,
       notes: ''
@@ -144,8 +150,24 @@ const PurchaseOrderModal = ({ isOpen, onClose, onSave, purchaseOrder = null }) =
     const items = [...formData.items];
     items[index][field] = value;
     
-    // Recalculate total cost when quantity or unit cost changes
-    if (field === 'quantity_ordered' || field === 'unit_cost') {
+    // Handle cost conversion when unit type or input cost changes
+    if (field === 'cost_unit_type' || field === 'cost_per_unit_input') {
+      const item = items[index];
+      
+      if (item.cost_unit_type === 'kg' && item.part_weight > 0) {
+        // Convert cost per kg to cost per piece
+        item.unit_cost = (item.cost_per_unit_input || 0) * item.part_weight;
+      } else {
+        // Use the input value directly for 'piece' unit type
+        item.unit_cost = item.cost_per_unit_input || 0;
+      }
+      
+      // Recalculate total cost
+      item.total_cost = (item.quantity_ordered || 0) * (item.unit_cost || 0);
+    }
+    
+    // Recalculate total cost when quantity changes
+    if (field === 'quantity_ordered') {
       items[index].total_cost = (items[index].quantity_ordered || 0) * (items[index].unit_cost || 0);
     }
     
@@ -174,8 +196,11 @@ const PurchaseOrderModal = ({ isOpen, onClose, onSave, purchaseOrder = null }) =
       if (item.quantity_ordered <= 0) {
         newErrors[`item_${index}_quantity`] = 'Quantity must be greater than 0';
       }
-      if (item.unit_cost < 0) {
-        newErrors[`item_${index}_cost`] = 'Unit cost cannot be negative';
+      if ((item.cost_per_unit_input || 0) < 0) {
+        newErrors[`item_${index}_cost`] = 'Cost input cannot be negative';
+      }
+      if (!(item.cost_per_unit_input > 0)) {
+        newErrors[`item_${index}_cost_required`] = 'Cost input is required';
       }
     });
     
@@ -202,6 +227,8 @@ const PurchaseOrderModal = ({ isOpen, onClose, onSave, purchaseOrder = null }) =
         items: formData.items.map(item => ({
           part_id: item.part_id,
           quantity_ordered: parseFloat(item.quantity_ordered) || 0,
+          cost_unit_type: item.cost_unit_type || 'piece',
+          cost_per_unit_input: parseFloat(item.cost_per_unit_input) || 0,
           unit_cost: parseFloat(item.unit_cost) || 0,
           notes: item.notes?.trim() || ''
         })).filter(item => item.part_id && item.quantity_ordered > 0)
@@ -429,6 +456,8 @@ const PurchaseOrderModal = ({ isOpen, onClose, onSave, purchaseOrder = null }) =
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Part</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost Unit</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost Input</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Cost</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
@@ -459,14 +488,33 @@ const PurchaseOrderModal = ({ isOpen, onClose, onSave, purchaseOrder = null }) =
                             />
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
+                            <select
+                              value={item.cost_unit_type || 'piece'}
+                              onChange={(e) => updateItem(index, 'cost_unit_type', e.target.value)}
+                              className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                            >
+                              <option value="piece">Piece</option>
+                              <option value="kg">Kg</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
                             <input
                               type="number"
-                              value={item.unit_cost}
-                              onChange={(e) => updateItem(index, 'unit_cost', parseFloat(e.target.value) || 0)}
+                              value={item.cost_per_unit_input || ''}
+                              onChange={(e) => updateItem(index, 'cost_per_unit_input', parseFloat(e.target.value) || 0)}
                               min="0"
                               step="0.01"
                               className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                              placeholder={item.cost_unit_type === 'kg' ? 'Cost/kg' : 'Cost/piece'}
                             />
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                            ${(item.unit_cost || 0).toFixed(2)}
+                            {item.cost_unit_type === 'kg' && item.part_weight > 0 && (
+                              <div className="text-xs text-gray-400">
+                                (${(item.cost_per_unit_input || 0).toFixed(2)}/kg × {item.part_weight}kg)
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                             ${(item.total_cost || 0).toFixed(2)}

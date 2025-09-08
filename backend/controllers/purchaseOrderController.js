@@ -14,6 +14,8 @@ const validatePurchaseOrder = [
   body('items').isArray({ min: 1 }).withMessage('At least one item is required'),
   body('items.*.part_id').isMongoId().withMessage('Valid part ID is required for each item'),
   body('items.*.quantity_ordered').isFloat({ min: 0.01 }).withMessage('Valid quantity is required for each item'),
+  body('items.*.cost_unit_type').optional().isIn(['piece', 'kg']).withMessage('Cost unit type must be either piece or kg'),
+  body('items.*.cost_per_unit_input').optional().isFloat({ min: 0 }).withMessage('Cost per unit input must be non-negative'),
   body('items.*.unit_cost').optional().isFloat({ min: 0 }).withMessage('Unit cost must be non-negative'),
   body('notes').optional().trim().isLength({ max: 1000 }).withMessage('Notes must be less than 1000 characters')
 ];

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
+const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHistory, onWithdraw }) => {
   const [formData, setFormData] = useState({
     part_id: '',
     name: '',
@@ -468,6 +468,32 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
           {/* Action Buttons */}
           <div className="flex items-center justify-between pt-4 border-t border-gray-200">
             <div className="flex space-x-3">
+              {part && viewMode && (
+                <>
+                  {/* History Button */}
+                  <button
+                    type="button"
+                    onClick={() => onViewHistory && onViewHistory(part)}
+                    className="px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 flex items-center space-x-2"
+                  >
+                    <span>📊</span>
+                    <span>View History</span>
+                  </button>
+                  
+                  {/* Withdraw Button - only show if part has stock */}
+                  {part.quantity_in_stock > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => onWithdraw && onWithdraw(part)}
+                      className="px-4 py-2 text-orange-600 border border-orange-600 rounded-lg hover:bg-orange-50 flex items-center space-x-2"
+                    >
+                      <span>📤</span>
+                      <span>Withdraw</span>
+                    </button>
+                  )}
+                </>
+              )}
+              
               {part && !viewMode && onDelete && (
                 <button
                   type="button"
@@ -494,6 +520,15 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
                   className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
                 >
                   {loading ? 'Saving...' : (part ? 'Update Part' : 'Create Part')}
+                </button>
+              )}
+              {part && viewMode && (
+                <button
+                  type="button"
+                  onClick={() => setViewMode(false)}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                >
+                  Edit Part
                 </button>
               )}
             </div>

@@ -498,23 +498,23 @@ const InStocks = () => {
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
                   <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <div className="flex items-center space-x-2">
-                      <span>Order Status</span>
+                  <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
+                    <div className="flex items-center space-x-1">
+                      <span className="hidden sm:inline">Order</span>
+                      <span className="sm:hidden">📋</span>
                       <button
                         onClick={refreshOrderStatus}
                         disabled={orderStatusLoading}
                         className="text-blue-600 hover:text-blue-800 disabled:text-gray-400"
                         title="Refresh order status"
                       >
-                        <svg className={`w-4 h-4 ${orderStatusLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className={`w-3 h-3 ${orderStatusLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
                       </button>
                     </div>
                   </th>
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -576,22 +576,24 @@ const InStocks = () => {
                             )}
                           </div>
                         </td>
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                        <td className="px-2 py-4 whitespace-nowrap text-center">
                           {(() => {
                             const orderDetail = partOrderDetails[part._id];
                             const hasOrder = orderDetail && orderDetail.hasOrder;
                             
                             return (
-                              <div className="relative group">
+                              <div className="relative group flex justify-center">
                                 {orderStatusLoading ? (
-                                  <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">
+                                  <span className="inline-flex w-7 h-7 items-center justify-center text-sm font-semibold rounded-full bg-gray-100 text-gray-600 animate-pulse">
                                     ⏳
                                   </span>
                                 ) : (
-                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full cursor-help ${
-                                    hasOrder ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
+                                  <span className={`inline-flex w-7 h-7 items-center justify-center text-sm font-semibold rounded-full cursor-help transition-all duration-300 hover:scale-110 ${
+                                    hasOrder 
+                                      ? 'bg-orange-500 text-white shadow-md animate-pulse hover:bg-orange-600' 
+                                      : 'bg-green-500 text-white shadow-sm hover:bg-green-600'
                                   }`}>
-                                    {hasOrder ? '📋' : '✅'}
+                                    {hasOrder ? '�' : '✅'}
                                   </span>
                                 )}
                                 
@@ -600,13 +602,13 @@ const InStocks = () => {
                                   <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10 min-w-max">
                                     {hasOrder ? (
                                       <div>
-                                        <div className="font-medium mb-1">Order Details:</div>
+                                        <div className="font-medium mb-1">📋 Order Details:</div>
                                         <div>Ordered: {orderDetail.totalOrdered}</div>
                                         <div>Received: {orderDetail.totalReceived}</div>
                                         <div>Remaining: {orderDetail.totalRemaining}</div>
                                       </div>
                                     ) : (
-                                      <div>No orders available</div>
+                                      <div>✅ No pending orders</div>
                                     )}
                                     {/* Arrow */}
                                     <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
@@ -622,33 +624,12 @@ const InStocks = () => {
                             <span className="hidden sm:inline">{statusText}</span>
                           </span>
                         </td>
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-1 sm:space-y-0 sm:space-x-2">
-                            <button 
-                              onClick={() => handleViewHistory(part)}
-                              className="text-blue-600 hover:text-blue-800 text-xs sm:text-sm font-medium"
-                            >
-                              History
-                            </button>
-                            {quantity > 0 && (
-                              <button 
-                                onClick={() => {
-                                  setSelectedPart(part);
-                                  setIsWithdrawModalOpen(true);
-                                }}
-                                className="text-red-600 hover:text-red-800 text-xs sm:text-sm font-medium"
-                              >
-                                Withdraw
-                              </button>
-                            )}
-                          </div>
-                        </td>
                       </tr>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan="7" className="px-3 sm:px-6 py-4 text-center">
+                    <td colSpan="6" className="px-3 sm:px-6 py-4 text-center">
                       <div className="py-8">
                         <div className="text-gray-400 text-4xl mb-4">📦</div>
                         <div className="text-gray-500 text-lg font-medium mb-2">
@@ -684,6 +665,15 @@ const InStocks = () => {
         part={selectedPartForEdit}
         onSave={handleEditPart}
         onDelete={handleDeletePart}
+        onViewHistory={(part) => {
+          setIsEditPartsModalOpen(false);
+          handleViewHistory(part);
+        }}
+        onWithdraw={(part) => {
+          setIsEditPartsModalOpen(false);
+          setSelectedPart(part);
+          setIsWithdrawModalOpen(true);
+        }}
       />
 
       {/* Purchase Order Modal */}
