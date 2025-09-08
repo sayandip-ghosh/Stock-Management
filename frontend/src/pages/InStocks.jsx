@@ -23,6 +23,10 @@ const InStocks = () => {
   const [selectedPartForEdit, setSelectedPartForEdit] = useState(null);
   const [isEditPartsModalOpen, setIsEditPartsModalOpen] = useState(false);
   const [isViewAllPendingOrdersModalOpen, setIsViewAllPendingOrdersModalOpen] = useState(false);
+  
+  // Order status tracking
+  const [partOrderDetails, setPartOrderDetails] = useState({});
+  const [orderStatusLoading, setOrderStatusLoading] = useState(false);
 
   // Filter options for part types
   const partTypeOptions = [
@@ -33,6 +37,12 @@ const InStocks = () => {
     fetchData();
     fetchPendingOrders();
   }, []);
+
+  // Track order details changes for debugging
+  useEffect(() => {
+    console.log('Order details updated:', partOrderDetails);
+    console.log('Parts with orders:', Object.keys(partOrderDetails).filter(id => partOrderDetails[id].hasOrder));
+  }, [partOrderDetails]);
 
   const fetchData = async () => {
     try {
@@ -57,9 +67,74 @@ const InStocks = () => {
   const fetchPendingOrders = async () => {
     try {
       const response = await purchaseOrdersAPI.getPending();
-      setPendingOrders(response.data.purchase_orders || []);
+      const orders = response.data.purchase_orders || [];
+      setPendingOrders(orders);
+      calculatePartOrderDetails(orders);
     } catch (error) {
       console.error('Error fetching pending orders:', error);
+    }
+  };
+
+  const calculatePartOrderDetails = (orders) => {
+    const orderDetails = {};
+    
+    console.log('Calculating order details for orders:', orders);
+    
+    orders.forEach(order => {
+      if (order.items && Array.isArray(order.items)) {
+        order.items.forEach(item => {
+          const partId = typeof item.part_id === 'object' ? item.part_id._id : item.part_id;
+          
+          if (partId) {
+            if (!orderDetails[partId]) {
+              orderDetails[partId] = {
+                hasOrder: false,
+                totalOrdered: 0,
+                totalReceived: 0,
+                totalRemaining: 0,
+                orders: []
+              };
+            }
+            
+            const ordered = item.quantity_ordered || item.quantity || 0;
+            const received = item.quantity_received || item.received_quantity || 0;
+            
+            orderDetails[partId].hasOrder = true;
+            orderDetails[partId].totalOrdered += ordered;
+            orderDetails[partId].totalReceived += received;
+            orderDetails[partId].totalRemaining += (ordered - received);
+            orderDetails[partId].orders.push({
+              orderId: order._id,
+              orderNumber: order.order_number,
+              supplierName: order.supplier_name,
+              ordered: ordered,
+              received: received,
+              remaining: ordered - received
+            });
+          }
+        });
+      }
+    });
+    
+    console.log('Final order details:', orderDetails);
+    setPartOrderDetails(orderDetails);
+  };
+
+  const refreshOrderStatus = async () => {
+    try {
+      setOrderStatusLoading(true);
+      console.log('Refreshing order status...');
+      
+      const response = await purchaseOrdersAPI.getPending();
+      const orders = response.data.purchase_orders || [];
+      setPendingOrders(orders);
+      calculatePartOrderDetails(orders);
+      
+      console.log('Order status refreshed');
+    } catch (error) {
+      console.error('Error refreshing order status:', error);
+    } finally {
+      setOrderStatusLoading(false);
     }
   };
 
@@ -168,10 +243,16 @@ const InStocks = () => {
         carrier_info: receiptData.carrier_info || ''
       });
       
-      fetchData(); // Refresh parts data
-      fetchPendingOrders(); // Refresh pending orders
+      // Close modal first
       setIsReceiveItemsModalOpen(false);
       setSelectedPurchaseOrder(null);
+      
+      // Refresh data with delay to ensure backend processing
+      setTimeout(async () => {
+        await refreshOrderStatus(); // Refresh order status first
+        await fetchData(); // Then refresh parts data
+      }, 1000);
+      
     } catch (error) {
       console.error('Error receiving items:', error);
       throw error;
@@ -417,6 +498,21 @@ const InStocks = () => {
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
                   <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <div className="flex items-center space-x-2">
+                      <span>Order Status</span>
+                      <button
+                        onClick={refreshOrderStatus}
+                        disabled={orderStatusLoading}
+                        className="text-blue-600 hover:text-blue-800 disabled:text-gray-400"
+                        title="Refresh order status"
+                      >
+                        <svg className={`w-4 h-4 ${orderStatusLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </button>
+                    </div>
+                  </th>
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
@@ -473,6 +569,46 @@ const InStocks = () => {
                           <div className="text-xs text-gray-500">{part.unit || 'pcs'}</div>
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                          {(() => {
+                            const orderDetail = partOrderDetails[part._id];
+                            const hasOrder = orderDetail && orderDetail.hasOrder;
+                            
+                            return (
+                              <div className="relative group">
+                                {orderStatusLoading ? (
+                                  <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">
+                                    ⏳
+                                  </span>
+                                ) : (
+                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full cursor-help ${
+                                    hasOrder ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
+                                  }`}>
+                                    {hasOrder ? '📋' : '✅'}
+                                  </span>
+                                )}
+                                
+                                {/* Tooltip */}
+                                {!orderStatusLoading && (
+                                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10 min-w-max">
+                                    {hasOrder ? (
+                                      <div>
+                                        <div className="font-medium mb-1">Order Details:</div>
+                                        <div>Ordered: {orderDetail.totalOrdered}</div>
+                                        <div>Received: {orderDetail.totalReceived}</div>
+                                        <div>Remaining: {orderDetail.totalRemaining}</div>
+                                      </div>
+                                    ) : (
+                                      <div>No orders available</div>
+                                    )}
+                                    {/* Arrow */}
+                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusClass}`}>
                             <span className="sm:hidden">{statusText.charAt(0)}</span>
                             <span className="hidden sm:inline">{statusText}</span>
@@ -504,7 +640,7 @@ const InStocks = () => {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="6" className="px-3 sm:px-6 py-4 text-center">
+                    <td colSpan="7" className="px-3 sm:px-6 py-4 text-center">
                       <div className="py-8">
                         <div className="text-gray-400 text-4xl mb-4">📦</div>
                         <div className="text-gray-500 text-lg font-medium mb-2">
