@@ -11,6 +11,7 @@ const validatePart = [
   body('quantity_in_stock').isFloat({ min: 0 }).withMessage('Quantity must be a non-negative number'),
   body('min_stock_level').isFloat({ min: 0 }).withMessage('Minimum stock level must be a non-negative number'),
   body('cost_per_unit').optional().isFloat({ min: 0 }).withMessage('Cost per unit must be a non-negative number'),
+  body('weight').optional().isFloat({ min: 0 }).withMessage('Weight must be a non-negative number'),
   body('location').optional().trim().isLength({ max: 100 }).withMessage('Location must be less than 100 characters'),
   body('category').optional().isIn(['Copper', 'GI', 'SS', 'Brass', 'PB', 'Aluminium', 'Nylon']).withMessage('Invalid category')
 ];
@@ -126,6 +127,7 @@ const createPart = async (req, res) => {
       quantity_in_stock: req.body.quantity_in_stock || 0,
       min_stock_level: req.body.min_stock_level || 10,
       cost_per_unit: req.body.cost_per_unit || 0,
+      weight: req.body.weight || 0,
       location: req.body.location,
       category: req.body.category,
       is_active: true

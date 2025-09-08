@@ -559,6 +559,9 @@ const InStocks = () => {
                               </button>
                               <div className="text-xs text-gray-500 mt-1">
                                 Min: {minLevel} {part.unit || 'pcs'}
+                                {part.weight > 0 && (
+                                  <span className="ml-2">| Weight: {part.weight} kg</span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -566,7 +569,12 @@ const InStocks = () => {
                         <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{part.type || 'Uncategorized'}</td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900 font-medium">{quantity}</div>
-                          <div className="text-xs text-gray-500">{part.unit || 'pcs'}</div>
+                          <div className="text-xs text-gray-500">
+                            {part.unit || 'pcs'}
+                            {part.weight > 0 && (
+                              <span className="block">Total: {(quantity * part.weight).toFixed(2)} kg</span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           {(() => {
