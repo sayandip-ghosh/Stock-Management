@@ -1035,7 +1035,7 @@ const ViewAssemblyModal = ({ isOpen, onClose, assembly, onEdit }) => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Build Cost</label>
-                <p className="mt-1 text-sm text-gray-900">${(assembly.build_cost || 0).toFixed(2)}</p>
+                <p className="mt-1 text-sm text-gray-900">₹{(assembly.build_cost || 0).toFixed(2)}</p>
               </div>
             </div>
 

@@ -5,6 +5,7 @@ import PurchaseOrderModal from '../components/PurchaseOrderModal';
 import ReceiveItemsModal from '../components/ReceiveItemsModal';
 import WithdrawModal from '../components/WithdrawModal';
 import { partsAPI, stockManagementAPI, purchaseOrdersAPI } from '../services/api';
+import { generatePurchaseOrderDocument } from '../utils/purchaseOrderDocument';
 
 const InStocks = () => {
   const [parts, setParts] = useState([]);
@@ -222,7 +223,44 @@ const InStocks = () => {
 
   const handleCreatePurchaseOrder = async (formData) => {
     try {
-      await purchaseOrdersAPI.create(formData);
+      console.log('Creating purchase order with data:', formData);
+      
+      // Create the purchase order
+      const response = await purchaseOrdersAPI.create(formData);
+      const createdOrder = response.data;
+      
+      console.log('Purchase order created successfully:', createdOrder);
+      
+      // Generate and download Word document
+      try {
+        // Prepare data for Word document generation
+        const documentData = {
+          order_number: createdOrder.order_number,
+          supplier_name: formData.supplier_name,
+          supplier_contact: formData.supplier_contact,
+          order_date: formData.order_date,
+          expected_delivery_date: formData.expected_delivery_date,
+          notes: formData.notes,
+          total_amount: createdOrder.total_amount || formData.items.reduce((sum, item) => sum + (item.quantity_ordered * item.unit_cost), 0),
+          items: formData.items.map(item => ({
+            part_name: item.part_name,
+            quantity_ordered: item.quantity_ordered,
+            unit: item.unit,
+            cost_per_unit_input: item.cost_per_unit_input,
+            cost_unit_type: item.cost_unit_type,
+            unit_cost: item.unit_cost
+          }))
+        };
+        
+        await generatePurchaseOrderDocument(documentData);
+        console.log('Word document generated and downloaded successfully');
+      } catch (docError) {
+        console.error('Error generating Word document:', docError);
+        // Don't fail the entire operation if document generation fails
+        alert('Purchase order created successfully, but there was an error generating the Word document.');
+      }
+      
+      // Refresh data and close modal
       fetchPendingOrders();
       setIsPurchaseOrderModalOpen(false);
     } catch (error) {

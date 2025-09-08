@@ -440,7 +440,7 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHist
               </div>
               <div>
                 <span className="text-sm text-gray-600">
-                  <span className="font-medium">Total Value:</span> ${(formData.quantity_in_stock * formData.cost_per_unit).toFixed(2)}
+                  <span className="font-medium">Total Value:</span> ₹{(formData.quantity_in_stock * formData.cost_per_unit).toFixed(2)}
                 </span>
               </div>
               <div>
