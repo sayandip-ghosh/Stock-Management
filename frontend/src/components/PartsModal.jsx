@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
+const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHistory, onWithdraw }) => {
   const [formData, setFormData] = useState({
     part_id: '',
     name: '',
@@ -8,6 +8,7 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
     quantity_in_stock: 0,
     min_stock_level: 10,
     cost_per_unit: 0,
+    weight: 0,
     category: '',
     description: '',
     location: '',
@@ -26,6 +27,7 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
         quantity_in_stock: part.quantity_in_stock || 0,
         min_stock_level: part.min_stock_level || 10,
         cost_per_unit: part.cost_per_unit || 0,
+        weight: part.weight || 0,
         category: part.category || part.type || '',
         description: part.description || '',
         location: part.location || '',
@@ -40,6 +42,7 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
         quantity_in_stock: 0,
         min_stock_level: 10,
         cost_per_unit: 0,
+        weight: 0,
         category: '',
         description: '',
         location: '',
@@ -52,9 +55,23 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
 
   const handleInputChange = (e) => {
     const { name, value, type } = e.target;
+    
+    let processedValue = value;
+    if (type === 'number') {
+      // Handle numeric inputs without losing precision
+      if (value === '' || value === '.') {
+        processedValue = '';
+      } else if (!isNaN(value) && !isNaN(parseFloat(value))) {
+        // Keep the exact value as entered, don't convert to float immediately
+        processedValue = value;
+      } else {
+        processedValue = 0;
+      }
+    }
+    
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'number' ? parseFloat(value) || 0 : value
+      [name]: processedValue
     }));
     
     // Clear error when user starts typing
@@ -74,16 +91,20 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
       newErrors.type = 'Category/Type is required';
     }
              
-    if (formData.quantity_in_stock < 0) {
+    if (parseFloat(formData.quantity_in_stock) < 0) {
       newErrors.quantity_in_stock = 'Stock quantity cannot be negative';
     }
     
-    if (formData.min_stock_level < 0) {
+    if (parseFloat(formData.min_stock_level) < 0) {
       newErrors.min_stock_level = 'Minimum stock level cannot be negative';
     }
     
-    if (formData.cost_per_unit < 0) {
+    if (parseFloat(formData.cost_per_unit) < 0) {
       newErrors.cost_per_unit = 'Price cannot be negative';
+    }
+    
+    if (parseFloat(formData.weight) < 0) {
+      newErrors.weight = 'Weight cannot be negative';
     }
     
     setErrors(newErrors);
@@ -104,6 +125,12 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
       if (part) {
         delete submitData.part_id; // Part ID shouldn't be updated
       }
+      
+      // Convert numeric string values to proper numbers
+      submitData.quantity_in_stock = parseFloat(submitData.quantity_in_stock) || 0;
+      submitData.min_stock_level = parseFloat(submitData.min_stock_level) || 0;
+      submitData.cost_per_unit = parseFloat(submitData.cost_per_unit) || 0;
+      submitData.weight = parseFloat(submitData.weight) || 0;
       
       // Map category to type for backend compatibility
       submitData.type = formData.type || formData.category;
@@ -299,7 +326,7 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
                 onChange={handleInputChange}
                 readOnly={viewMode}
                 min="0"
-                step="0.01"
+                step="any"
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
                   viewMode ? 'bg-gray-50 border-gray-200' :
                   errors.cost_per_unit ? 'border-red-500' : 'border-gray-300'
@@ -307,6 +334,28 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
                 placeholder="0.00"
               />
               {errors.cost_per_unit && <p className="text-red-500 text-sm mt-1">{errors.cost_per_unit}</p>}
+            </div>
+
+            {/* Weight */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Weight (kg)
+              </label>
+              <input
+                type="number"
+                name="weight"
+                value={formData.weight}
+                onChange={handleInputChange}
+                readOnly={viewMode}
+                min="0"
+                step="any"
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                  viewMode ? 'bg-gray-50 border-gray-200' :
+                  errors.weight ? 'border-red-500' : 'border-gray-300'
+                }`}
+                placeholder="0.00"
+              />
+              {errors.weight && <p className="text-red-500 text-sm mt-1">{errors.weight}</p>}
             </div>
 
             {/* Unit */}
@@ -377,7 +426,7 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
 
           {/* Status Display */}
           <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <span className="text-sm font-medium text-gray-700">Stock Status:</span>
                 <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -391,9 +440,21 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
               </div>
               <div>
                 <span className="text-sm text-gray-600">
-                  <span className="font-medium">Total Value:</span> ${(formData.quantity_in_stock * formData.cost_per_unit).toFixed(2)}
+                  <span className="font-medium">Total Value:</span> ₹{(formData.quantity_in_stock * formData.cost_per_unit).toFixed(2)}
                 </span>
               </div>
+              <div>
+                <span className="text-sm text-gray-600">
+                  <span className="font-medium">Total Weight:</span> {(formData.quantity_in_stock * formData.weight).toFixed(2)} kg
+                </span>
+              </div>
+              {part && (
+                <div>
+                  <span className="text-sm text-gray-600">
+                    <span className="font-medium">Unit Weight:</span> {formData.weight} kg
+                  </span>
+                </div>
+              )}
               {part && (
                 <div>
                   <span className="text-sm text-gray-600">
@@ -407,6 +468,32 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
           {/* Action Buttons */}
           <div className="flex items-center justify-between pt-4 border-t border-gray-200">
             <div className="flex space-x-3">
+              {part && viewMode && (
+                <>
+                  {/* History Button */}
+                  <button
+                    type="button"
+                    onClick={() => onViewHistory && onViewHistory(part)}
+                    className="px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 flex items-center space-x-2"
+                  >
+                    <span>📊</span>
+                    <span>View History</span>
+                  </button>
+                  
+                  {/* Withdraw Button - only show if part has stock */}
+                  {part.quantity_in_stock > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => onWithdraw && onWithdraw(part)}
+                      className="px-4 py-2 text-orange-600 border border-orange-600 rounded-lg hover:bg-orange-50 flex items-center space-x-2"
+                    >
+                      <span>📤</span>
+                      <span>Withdraw</span>
+                    </button>
+                  )}
+                </>
+              )}
+              
               {part && !viewMode && onDelete && (
                 <button
                   type="button"
@@ -433,6 +520,15 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete }) => {
                   className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
                 >
                   {loading ? 'Saving...' : (part ? 'Update Part' : 'Create Part')}
+                </button>
+              )}
+              {part && viewMode && (
+                <button
+                  type="button"
+                  onClick={() => setViewMode(false)}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                >
+                  Edit Part
                 </button>
               )}
             </div>

@@ -48,6 +48,11 @@ const partSchema = new mongoose.Schema({
     min: 0,
     default: 0
   },
+  weight: {
+    type: Number,
+    min: 0,
+    default: 0
+  },
   location: {
     type: String,
     trim: true,
