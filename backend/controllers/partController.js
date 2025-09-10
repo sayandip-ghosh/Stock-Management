@@ -1,6 +1,9 @@
 const { body, validationResult } = require('express-validator');
 const Part = require('../models/Part');
 const StockTransaction = require('../models/StockTransaction');
+const RawItem = require('../models/RawItem');
+const ManufacturingRecord = require('../models/ManufacturingRecord');
+const mongoose = require('mongoose');
 
 // Validation middleware
 const validatePart = [
@@ -333,6 +336,401 @@ const getPartStatistics = async (req, res) => {
   }
 };
 
+// Create parts from raw items
+const createPartsFromRawItems = async (req, res) => {
+  const session = await mongoose.startSession();
+  
+  try {
+    session.startTransaction();
+    
+    const { 
+      part_id, 
+      quantity_to_make, 
+      vendor_type, 
+      raw_items_used, 
+      notes 
+    } = req.body;
+    
+    // Validate required fields
+    if (!part_id || !quantity_to_make || !raw_items_used || !Array.isArray(raw_items_used)) {
+      await session.abortTransaction();
+      return res.status(400).json({ 
+        error: 'Missing required fields',
+        message: 'part_id, quantity_to_make, and raw_items_used are required'
+      });
+    }
+    
+    if (quantity_to_make <= 0) {
+      await session.abortTransaction();
+      return res.status(400).json({ 
+        error: 'Invalid quantity',
+        message: 'quantity_to_make must be greater than 0'
+      });
+    }
+    
+    // Find the part to create
+    console.log('Looking for part with ID:', part_id);
+    const part = await Part.findById(part_id).session(session);
+    if (!part) {
+      await session.abortTransaction();
+      return res.status(404).json({ error: 'Part not found' });
+    }
+    console.log('Found part:', part.name);
+    
+    // Validate and process raw items
+    const rawItemUpdates = [];
+    const stockTransactions = [];
+    const fetchedRawItems = [];
+    
+    for (const rawItemData of raw_items_used) {
+      const { _id: rawItemId, quantity_used } = rawItemData;
+      
+      if (!rawItemId || !quantity_used || quantity_used <= 0) {
+        await session.abortTransaction();
+        return res.status(400).json({ 
+          error: 'Invalid raw item data',
+          message: 'Each raw item must have valid _id and quantity_used'
+        });
+      }
+      
+      // Find the raw item
+      const rawItem = await RawItem.findById(rawItemId).session(session);
+      if (!rawItem) {
+        await session.abortTransaction();
+        return res.status(404).json({ 
+          error: 'Raw item not found',
+          message: `Raw item with ID ${rawItemId} not found`
+        });
+      }
+      
+      // Store the fetched raw item for later use
+      fetchedRawItems.push(rawItem);
+      
+      // Calculate total quantity needed
+      const totalQuantityNeeded = quantity_used * quantity_to_make;
+      
+      // Check if enough stock is available
+      if (rawItem.quantity_in_stock < totalQuantityNeeded) {
+        await session.abortTransaction();
+        return res.status(400).json({ 
+          error: 'Insufficient raw item stock',
+          message: `Not enough ${rawItem.name} in stock. Available: ${rawItem.quantity_in_stock}, Required: ${totalQuantityNeeded}`,
+          rawItem: {
+            name: rawItem.name,
+            available: rawItem.quantity_in_stock,
+            required: totalQuantityNeeded
+          }
+        });
+      }
+      
+      // Prepare raw item stock update
+      const newRawItemStock = rawItem.quantity_in_stock - totalQuantityNeeded;
+      rawItemUpdates.push({
+        rawItemId,
+        previousStock: rawItem.quantity_in_stock,
+        newStock: newRawItemStock,
+        quantityUsed: totalQuantityNeeded
+      });
+      
+      // Create stock transaction for raw item withdrawal
+      const rawItemTransaction = new StockTransaction({
+        part_reference: rawItemId,
+        transaction_type: 'WITHDRAWAL',
+        quantity: totalQuantityNeeded,
+        unit_price: rawItem.cost_per_unit || 0,
+        total_value: (rawItem.cost_per_unit || 0) * totalQuantityNeeded,
+        reference: `Manufacturing - ${part.name}`,
+        reference_type: 'OTHER',
+        notes: `Used to create ${quantity_to_make} ${part.name} (${quantity_used} per part)`,
+        previous_stock: rawItem.quantity_in_stock,
+        new_stock: newRawItemStock,
+        date: new Date(),
+        created_by: 'system'
+      });
+      
+      stockTransactions.push(rawItemTransaction);
+    }
+    
+    // Update raw item stocks
+    for (const update of rawItemUpdates) {
+      await RawItem.updateOne(
+        { _id: update.rawItemId },
+        { 
+          $set: { 
+            quantity_in_stock: update.newStock
+          }
+        },
+        { session }
+      );
+    }
+    
+    // Save stock transactions for raw items
+    for (const transaction of stockTransactions) {
+      transaction.transaction_id = await generateTransactionId(session);
+      await transaction.save({ session });
+    }
+    
+    // Update part stock (add the created parts)
+    const previousPartStock = part.quantity_in_stock;
+    const newPartStock = previousPartStock + quantity_to_make;
+    
+    await Part.updateOne(
+      { _id: part_id },
+      { 
+        $set: { 
+          quantity_in_stock: newPartStock,
+          last_restocked: new Date()
+        }
+      },
+      { session }
+    );
+    
+    // Create stock transaction for part addition
+    const partTransaction = new StockTransaction({
+      part_reference: part_id,
+      transaction_type: 'DELIVERY',
+      quantity: quantity_to_make,
+      unit_price: part.cost_per_unit || 0,
+      total_value: (part.cost_per_unit || 0) * quantity_to_make,
+      reference: `Manufacturing - ${part.name}`,
+      reference_type: 'OTHER',
+      notes: `Created from raw items${notes ? ` - ${notes}` : ''}`,
+      previous_stock: previousPartStock,
+      new_stock: newPartStock,
+      date: new Date(),
+      created_by: 'system'
+    });
+    
+    partTransaction.transaction_id = await generateTransactionId(session);
+    await partTransaction.save({ session });
+    
+    // Create manufacturing record and save to database
+    console.log('Creating manufacturing record...');
+    const manufacturingRecordData = {
+      part_id: part_id,
+      part_name: part.name,
+      part_part_id: part.part_id,
+      quantity_created: quantity_to_make,
+      vendor_type: vendor_type || 'internal',
+      raw_items_used: raw_items_used.map(item => {
+        const rawItem = fetchedRawItems.find(ri => ri._id.toString() === item._id);
+        return {
+          raw_item_id: item._id,
+          raw_item_name: item.name,
+          raw_item_item_id: rawItem?.item_id || 'N/A',
+          quantity_per_part: item.quantity_used,
+          total_quantity_used: item.quantity_used * quantity_to_make,
+          unit: rawItem?.unit || 'KG',
+          cost_per_unit: rawItem?.cost_per_unit || 0,
+          total_cost: (rawItem?.cost_per_unit || 0) * item.quantity_used * quantity_to_make
+        };
+      }),
+      production_date: new Date(),
+      completed_date: new Date(),
+      notes: notes || '',
+      created_by: 'system',
+      status: 'completed',
+      quality_control: {
+        passed: true,
+        inspection_date: new Date()
+      }
+    };
+    
+    console.log('Manufacturing record data:', JSON.stringify(manufacturingRecordData, null, 2));
+    
+    // Generate manufacturing_id manually
+    const manufacturingId = `MFG${Date.now().toString().slice(-6)}`;
+    manufacturingRecordData.manufacturing_id = manufacturingId;
+    
+    const manufacturingRecord = new ManufacturingRecord(manufacturingRecordData);
+    console.log('Saving manufacturing record with ID:', manufacturingId);
+    await manufacturingRecord.save({ session });
+    console.log('Manufacturing record saved successfully');
+    
+    await session.commitTransaction();
+    
+    // Populate the part details for response
+    await part.populate('_id');
+    
+    res.status(201).json({
+      success: true,
+      message: `Successfully created ${quantity_to_make} ${part.name} from raw items`,
+      data: {
+        part: {
+          _id: part._id,
+          name: part.name,
+          part_id: part.part_id,
+          previous_stock: previousPartStock,
+          new_stock: newPartStock,
+          quantity_created: quantity_to_make
+        },
+        raw_items_consumed: rawItemUpdates.map(update => ({
+          raw_item_id: update.rawItemId,
+          quantity_used: update.quantityUsed,
+          previous_stock: update.previousStock,
+          new_stock: update.newStock
+        })),
+        manufacturing_record: {
+          manufacturing_id: manufacturingRecord.manufacturing_id,
+          part_name: manufacturingRecord.part_name,
+          quantity_created: manufacturingRecord.quantity_created,
+          vendor_type: manufacturingRecord.vendor_type,
+          production_date: manufacturingRecord.production_date,
+          total_manufacturing_cost: manufacturingRecord.total_manufacturing_cost,
+          raw_items_used: manufacturingRecord.raw_items_used
+        },
+        transactions: {
+          part_transaction_id: partTransaction.transaction_id,
+          raw_item_transaction_ids: stockTransactions.map(t => t.transaction_id)
+        }
+      }
+    });
+    
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error creating parts from raw items:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'Failed to create parts from raw items',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+// Helper function to generate transaction ID
+async function generateTransactionId(session) {
+  try {
+    const lastTransaction = await StockTransaction.findOne({}, {}, { sort: { transaction_id: -1 } }).session(session);
+    let nextNumber = 1;
+
+    if (lastTransaction?.transaction_id) {
+      const match = lastTransaction.transaction_id.match(/TXN(\d+)/);
+      if (match) nextNumber = parseInt(match[1]) + 1;
+    }
+
+    for (let attempts = 0; attempts < 100; attempts++) {
+      const transactionId = `TXN${String(nextNumber + attempts).padStart(6, '0')}`;
+      const exists = await StockTransaction.findOne({ transaction_id: transactionId }).session(session);
+      if (!exists) return transactionId;
+    }
+
+    return `TXN${Date.now().toString().slice(-6)}`;
+  } catch {
+    return `TXN${Date.now().toString().slice(-6)}`;
+  }
+}
+
+// Get manufacturing records
+const getManufacturingRecords = async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 20, 
+      part_id, 
+      status, 
+      vendor_type,
+      start_date,
+      end_date,
+      sortBy = 'production_date', 
+      sortOrder = 'desc' 
+    } = req.query;
+    
+    // Build query
+    const query = { is_active: true };
+    if (part_id) query.part_id = part_id;
+    if (status) query.status = status;
+    if (vendor_type) query.vendor_type = vendor_type;
+    
+    if (start_date || end_date) {
+      query.production_date = {};
+      if (start_date) query.production_date.$gte = new Date(start_date);
+      if (end_date) query.production_date.$lte = new Date(end_date);
+    }
+    
+    // Build sort object
+    const sort = {};
+    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    
+    const records = await ManufacturingRecord.find(query)
+      .sort(sort)
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .populate('part_id', 'name part_id type')
+      .populate('raw_items_used.raw_item_id', 'name item_id material_type')
+      .exec();
+    
+    const total = await ManufacturingRecord.countDocuments(query);
+    
+    res.json({
+      records,
+      totalPages: Math.ceil(total / limit),
+      currentPage: parseInt(page),
+      total,
+      hasNext: page * limit < total,
+      hasPrev: page > 1
+    });
+  } catch (error) {
+    console.error('Error fetching manufacturing records:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Get manufacturing record by ID
+const getManufacturingRecordById = async (req, res) => {
+  try {
+    const record = await ManufacturingRecord.findById(req.params.id)
+      .populate('part_id', 'name part_id type description')
+      .populate('raw_items_used.raw_item_id', 'name item_id material_type unit cost_per_unit');
+    
+    if (!record) {
+      return res.status(404).json({ error: 'Manufacturing record not found' });
+    }
+    
+    res.json(record);
+  } catch (error) {
+    console.error('Error fetching manufacturing record:', error);
+    if (error.kind === 'ObjectId') {
+      return res.status(400).json({ error: 'Invalid manufacturing record ID' });
+    }
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Get manufacturing statistics
+const getManufacturingStatistics = async (req, res) => {
+  try {
+    const { start_date, end_date, part_id } = req.query;
+    
+    const filters = { is_active: true };
+    if (part_id) filters.part_id = part_id;
+    if (start_date || end_date) {
+      filters.production_date = {};
+      if (start_date) filters.production_date.$gte = new Date(start_date);
+      if (end_date) filters.production_date.$lte = new Date(end_date);
+    }
+    
+    const summary = await ManufacturingRecord.getManufacturingSummary(filters);
+    const recentRecords = await ManufacturingRecord.getRecentManufacturing(5);
+    
+    res.json({
+      summary: summary[0] || {
+        totalRecords: 0,
+        totalPartsCreated: 0,
+        totalCost: 0,
+        averageCostPerPart: 0
+      },
+      recentRecords
+    });
+  } catch (error) {
+    console.error('Error fetching manufacturing statistics:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   validatePart,
   getAllParts,
@@ -342,5 +740,9 @@ module.exports = {
   deletePart,
   getLowStockAlerts,
   updateStockQuantity,
-  getPartStatistics
+  getPartStatistics,
+  createPartsFromRawItems,
+  getManufacturingRecords,
+  getManufacturingRecordById,
+  getManufacturingStatistics
 };
