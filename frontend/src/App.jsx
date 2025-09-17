@@ -5,6 +5,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Dashboard from './pages/Dashboard';
 import InStocks from './pages/InStocks';
 import Assembly from './pages/Assembly';
+import RawItems from './pages/RawItems';
+
 import './index.css';
 
 function App() {
@@ -18,6 +20,8 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/in-stocks" element={<InStocks />} />
               <Route path="/assembly" element={<Assembly />} />
+              <Route path="/raw-items" element={<RawItems />} />
+             
             </Routes>
           </ProtectedRoute>
         </div>

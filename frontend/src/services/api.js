@@ -97,7 +97,13 @@ export const partsAPI = {
   updateStock: (id, data) => api.post(`/parts/${id}/stock`, data),
   getStats: () => api.get('/parts/stats/summary'),
   // Add a paginated version for when we actually need pagination
-  getPaginated: (params = {}) => api.get('/parts', { params })
+  getPaginated: (params = {}) => api.get('/parts', { params }),
+  // Create parts from raw items
+  createFromRawItems: (data) => api.post('/parts/create-from-raw-items', data),
+  // Manufacturing Records API
+  getManufacturingRecords: (params = {}) => api.get('/parts/manufacturing-records', { params }),
+  getManufacturingRecordById: (id) => api.get(`/parts/manufacturing-records/${id}`),
+  getManufacturingStatistics: (params = {}) => api.get('/parts/manufacturing-records/stats/summary', { params })
 };
 
 // Assemblies API
@@ -182,6 +188,67 @@ export const purchaseOrdersAPI = {
   receiveItem: (orderId, itemId, data) => 
     api.post(`/purchase-orders/${orderId}/items/${itemId}/receive`, data)
 };
+
+// Raw Items API
+export const rawItemsAPI = {
+  getAll: (params = {}) => {
+    const searchParams = new URLSearchParams({
+      limit: '1000',
+      page: '1',
+      ...params
+    });
+    return api.get(`/raw-items?${searchParams}`);
+  },
+  getById: (id) => api.get(`/raw-items/${id}`),
+  create: (data) => api.post('/raw-items', data),
+  update: (id, data) => api.put(`/raw-items/${id}`, data),
+  delete: (id) => api.delete(`/raw-items/${id}`),
+  getByMaterialType: (materialType) => api.get(`/raw-items/material/${materialType}`),
+  getLowStock: () => api.get('/raw-items/low-stock'),
+  updateStock: (id, data) => api.patch(`/raw-items/${id}/stock`, data),
+  getStats: () => api.get('/raw-items/stats/summary'),
+  getPaginated: (params = {}) => api.get('/raw-items', { params })
+};
+
+// Raw Item Purchase Orders API
+export const rawItemPurchaseOrdersAPI = {
+  getAll: (params = {}) => api.get('/raw-item-purchase-orders', { params }),
+  getById: (id) => api.get(`/raw-item-purchase-orders/${id}`),
+  create: (data) => api.post('/raw-item-purchase-orders', data),
+  update: (id, data) => api.put(`/raw-item-purchase-orders/${id}`, data),
+  delete: (id) => api.delete(`/raw-item-purchase-orders/${id}`),
+  
+  // Receive raw items for a purchase order
+  receiveItems: (id, data) => api.post(`/raw-item-purchase-orders/${id}/receive`, data),
+  
+  // Get pending/partial orders
+  getPending: () => api.get('/raw-item-purchase-orders/status/pending'),
+  getPartial: () => api.get('/raw-item-purchase-orders/status/partial')
+};
+
+// Scrap Items API
+export const scrapItemsAPI = {
+  getAll: (params = {}) => {
+    const searchParams = new URLSearchParams({
+      limit: '1000',
+      page: '1',
+      ...params
+    });
+    return api.get(`/scrap-items?${searchParams}`);
+  },
+  getById: (id) => api.get(`/scrap-items/${id}`),
+  create: (data) => api.post('/scrap-items', data),
+  update: (id, data) => api.put(`/scrap-items/${id}`, data),
+  delete: (id) => api.delete(`/scrap-items/${id}`),
+  getByRawItem: (rawItemId) => api.get(`/scrap-items/raw-item/${rawItemId}`),
+  updateStock: (id, data) => api.patch(`/scrap-items/${id}/stock`, data),
+  addFromOperation: (data) => api.post('/scrap-items/add-from-operation', data),
+  useScrap: (id, data) => api.patch(`/scrap-items/${id}/use`, data),
+  getStats: () => api.get('/scrap-items/stats/summary'),
+  getPaginated: (params = {}) => api.get('/scrap-items', { params })
+};
+
+
 
 // Auth API
 export const authAPI = {

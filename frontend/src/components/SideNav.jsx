@@ -8,6 +8,7 @@ const SideNav = ({ onClose }) => {
   const navItems = [
     // { name: 'Dashboard', icon: '📊', path: '/', count: null },
     { name: 'Add Parts', icon: '📦', path: '/in-stocks', count: null },
+    { name: 'Raw Items', icon: '🏭', path: '/raw-items', count: null },
     { name: 'Assembly', icon: '⚙️', path: '/assembly', count: null },
   ];
 

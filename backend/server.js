@@ -7,7 +7,7 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8000;
 
 // Import routes
 const partRoutes = require('./routes/parts');
@@ -17,6 +17,9 @@ const assemblyRoutes = require('./routes/assemblies');
 const transactionRoutes = require('./routes/transactions');
 const stockManagementRoutes = require('./routes/stockManagement');
 const purchaseOrderRoutes = require('./routes/purchaseOrders');
+const rawItemPurchaseOrderRoutes = require('./routes/rawItemPurchaseOrders');
+const rawItemRoutes = require('./routes/rawItems');
+const scrapItemRoutes = require('./routes/scrapItems');
 const authRoutes = require('./routes/auth');
 
 // Middleware
@@ -54,6 +57,10 @@ app.use('/api/assemblies', assemblyRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/stock-management', stockManagementRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
+app.use('/api/raw-item-purchase-orders', rawItemPurchaseOrderRoutes);
+app.use('/api/raw-items', rawItemRoutes);
+app.use('/api/scrap-items', scrapItemRoutes);
+
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -81,6 +88,10 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/stock_man
     console.log('- /api/transactions');
     console.log('- /api/stock-management');
     console.log('- /api/purchase-orders');
+    console.log('- /api/raw-item-purchase-orders');
+    console.log('- /api/raw-items');
+    console.log('- /api/scrap-items');
+    
   });
 })
 .catch((error) => {
