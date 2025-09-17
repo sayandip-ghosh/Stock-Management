@@ -979,6 +979,21 @@ const ViewAllPendingOrdersModal = ({ isOpen, onClose, orders, onReceiveItems, on
                         <span>📦</span>
                         <span>Receive</span>
                       </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const { generatePurchaseOrderDocument } = await import('../utils/purchaseOrderDocument');
+                            await generatePurchaseOrderDocument(order);
+                          } catch (error) {
+                            console.error('Error generating document:', error);
+                            alert('Error generating document. Please try again.');
+                          }
+                        }}
+                        className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 flex items-center justify-center space-x-1"
+                      >
+                        <span>📄</span>
+                        <span>Download</span>
+                      </button>
                       {/* <button
                         onClick={() => onViewOrder(order)}
                         className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 flex items-center justify-center space-x-1"
