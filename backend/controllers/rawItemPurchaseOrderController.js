@@ -1,27 +1,38 @@
 const { body, validationResult } = require('express-validator');
-const PurchaseOrder = require('../models/PurchaseOrder');
-const PurchaseOrderReceipt = require('../models/PurchaseOrderReceipt');
-const Part = require('../models/Part');
+const RawItemPurchaseOrder = require('../models/RawItemPurchaseOrder');
+const RawItem = require('../models/RawItem');
 const StockTransaction = require('../models/StockTransaction');
 const mongoose = require('mongoose');
 
-// Validation middleware for purchase orders
-const validatePurchaseOrder = [
+// Validation middleware for raw item purchase orders
+const validateRawItemPurchaseOrder = [
   body('supplier_name').trim().isLength({ min: 1, max: 200 }).withMessage('Supplier name is required and must be less than 200 characters'),
   body('supplier_contact').optional().trim().isLength({ max: 200 }).withMessage('Supplier contact must be less than 200 characters'),
   body('order_date').isISO8601().withMessage('Valid order date is required'),
   body('expected_delivery_date').optional().isISO8601().withMessage('Valid expected delivery date required'),
   body('items').isArray({ min: 1 }).withMessage('At least one item is required'),
-  body('items.*.part_id').isMongoId().withMessage('Valid part ID is required for each item'),
+  body('items.*.raw_item_id').isMongoId().withMessage('Valid raw item ID is required for each item'),
   body('items.*.quantity_ordered').isFloat({ min: 0.01 }).withMessage('Valid quantity is required for each item'),
-  body('items.*.cost_unit_type').optional().isIn(['piece', 'kg']).withMessage('Cost unit type must be either piece or kg'),
-  body('items.*.cost_per_unit_input').optional().isFloat({ min: 0 }).withMessage('Cost per unit input must be non-negative'),
   body('items.*.unit_cost').optional().isFloat({ min: 0 }).withMessage('Unit cost must be non-negative'),
   body('notes').optional().trim().isLength({ max: 1000 }).withMessage('Notes must be less than 1000 characters')
 ];
 
-// Get all purchase orders
-const getAllPurchaseOrders = async (req, res) => {
+// Lighter validation for updates (allows partial updates)
+const validateRawItemPurchaseOrderUpdate = [
+  body('supplier_name').optional().trim().isLength({ min: 1, max: 200 }).withMessage('Supplier name must be less than 200 characters'),
+  body('supplier_contact').optional().trim().isLength({ max: 200 }).withMessage('Supplier contact must be less than 200 characters'),
+  body('order_date').optional().isISO8601().withMessage('Valid order date is required'),
+  body('expected_delivery_date').optional().isISO8601().withMessage('Valid expected delivery date required'),
+  body('status').optional().isIn(['pending', 'partial', 'completed', 'cancelled']).withMessage('Invalid status'),
+  body('items').optional().isArray({ min: 1 }).withMessage('At least one item is required'),
+  body('items.*.raw_item_id').optional().isMongoId().withMessage('Valid raw item ID is required for each item'),
+  body('items.*.quantity_ordered').optional().isFloat({ min: 0.01 }).withMessage('Valid quantity is required for each item'),
+  body('items.*.unit_cost').optional().isFloat({ min: 0 }).withMessage('Unit cost must be non-negative'),
+  body('notes').optional().trim().isLength({ max: 1000 }).withMessage('Notes must be less than 1000 characters')
+];
+
+// Get all raw item purchase orders
+const getAllRawItemPurchaseOrders = async (req, res) => {
   try {
     const { 
       page = 1, 
@@ -50,17 +61,17 @@ const getAllPurchaseOrders = async (req, res) => {
     sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
     // Execute query with pagination
-    const purchaseOrders = await PurchaseOrder.find(query)
-      .populate('items.part_id', 'part_id name unit')
+    const purchaseOrders = await RawItemPurchaseOrder.find(query)
+      .populate('items.raw_item_id', 'item_id name material_type unit')
       .sort(sort)
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .exec();
 
-    const total = await PurchaseOrder.countDocuments(query);
+    const total = await RawItemPurchaseOrder.countDocuments(query);
 
     res.json({
-      purchase_orders: purchaseOrders,
+      data: purchaseOrders,
       totalPages: Math.ceil(total / limit),
       currentPage: parseInt(page),
       total,
@@ -68,35 +79,35 @@ const getAllPurchaseOrders = async (req, res) => {
       hasPrev: page > 1
     });
   } catch (error) {
-    console.error('Error fetching purchase orders:', error);
+    console.error('Error fetching raw item purchase orders:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
 
-// Get purchase order by ID
-const getPurchaseOrderById = async (req, res) => {
+// Get raw item purchase order by ID
+const getRawItemPurchaseOrderById = async (req, res) => {
   try {
-    const purchaseOrder = await PurchaseOrder.findById(req.params.id)
-      .populate('items.part_id', 'part_id name unit quantity_in_stock');
+    const purchaseOrder = await RawItemPurchaseOrder.findById(req.params.id)
+      .populate('items.raw_item_id', 'item_id name material_type unit quantity_in_stock');
 
     if (!purchaseOrder) {
-      return res.status(404).json({ error: 'Purchase order not found' });
+      return res.status(404).json({ error: 'Raw item purchase order not found' });
     }
 
-    res.json(purchaseOrder);
+    res.json({ data: purchaseOrder });
   } catch (error) {
-    console.error('Error fetching purchase order:', error);
+    console.error('Error fetching raw item purchase order:', error);
     if (error.kind === 'ObjectId') {
-      return res.status(400).json({ error: 'Invalid purchase order ID' });
+      return res.status(400).json({ error: 'Invalid raw item purchase order ID' });
     }
     res.status(500).json({ error: 'Internal server error' });
   }
 };
 
-// Create new purchase order
-const createPurchaseOrder = async (req, res) => {
+// Create new raw item purchase order
+const createRawItemPurchaseOrder = async (req, res) => {
   try {
-    console.log('=== CREATE PURCHASE ORDER ===');
+    console.log('=== CREATE RAW ITEM PURCHASE ORDER ===');
     console.log('Request body:', JSON.stringify(req.body, null, 2));
     
     const errors = validationResult(req);
@@ -109,16 +120,16 @@ const createPurchaseOrder = async (req, res) => {
       });
     }
 
-    // Verify all parts exist
-    const partIds = req.body.items.map(item => item.part_id);
-    console.log('Part IDs to verify:', partIds);
+    // Verify all raw items exist
+    const rawItemIds = req.body.items.map(item => item.raw_item_id);
+    console.log('Raw item IDs to verify:', rawItemIds);
     
-    const parts = await Part.find({ _id: { $in: partIds } });
-    console.log(`Found ${parts.length} parts out of ${partIds.length} requested`);
+    const rawItems = await RawItem.find({ _id: { $in: rawItemIds } });
+    console.log(`Found ${rawItems.length} raw items out of ${rawItemIds.length} requested`);
     
-    if (parts.length !== partIds.length) {
-      console.log('Missing parts. Found:', parts.map(p => p._id));
-      return res.status(400).json({ error: 'One or more parts not found' });
+    if (rawItems.length !== rawItemIds.length) {
+      console.log('Missing raw items. Found:', rawItems.map(r => r._id));
+      return res.status(400).json({ error: 'One or more raw items not found' });
     }
 
     // Create purchase order without order_number (let middleware generate it)
@@ -136,20 +147,20 @@ const createPurchaseOrder = async (req, res) => {
       purchaseOrderData.expected_delivery_date = req.body.expected_delivery_date;
     }
 
-    console.log('Creating purchase order with data:', purchaseOrderData);
+    console.log('Creating raw item purchase order with data:', purchaseOrderData);
     
-    const purchaseOrder = new PurchaseOrder(purchaseOrderData);
+    const purchaseOrder = new RawItemPurchaseOrder(purchaseOrderData);
 
-    console.log('Attempting to save purchase order...');
+    console.log('Attempting to save raw item purchase order...');
     await purchaseOrder.save();
-    console.log('Purchase order saved successfully with order number:', purchaseOrder.order_number);
+    console.log('Raw item purchase order saved successfully with order number:', purchaseOrder.order_number);
 
     // Populate references for response
-    await purchaseOrder.populate('items.part_id', 'part_id name unit');
+    await purchaseOrder.populate('items.raw_item_id', 'item_id name material_type unit');
 
-    res.status(201).json(purchaseOrder);
+    res.status(201).json({ data: purchaseOrder });
   } catch (error) {
-    console.error('Error creating purchase order:', error);
+    console.error('Error creating raw item purchase order:', error);
     if (error.name === 'ValidationError') {
       console.log('Mongoose validation error:', error.errors);
       return res.status(400).json({ 
@@ -162,64 +173,69 @@ const createPurchaseOrder = async (req, res) => {
   }
 };
 
-// Update purchase order
-const updatePurchaseOrder = async (req, res) => {
+// Update raw item purchase order
+const updateRawItemPurchaseOrder = async (req, res) => {
   try {
+    console.log('=== UPDATE RAW ITEM PURCHASE ORDER ===');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('Validation errors:', errors.array());
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const purchaseOrder = await PurchaseOrder.findById(req.params.id);
+    const purchaseOrder = await RawItemPurchaseOrder.findById(req.params.id);
     if (!purchaseOrder) {
-      return res.status(404).json({ error: 'Purchase order not found' });
+      return res.status(404).json({ error: 'Raw item purchase order not found' });
     }
 
-    // Don't allow updates to completed orders
-    if (purchaseOrder.status === 'completed') {
-      return res.status(400).json({ error: 'Cannot modify completed purchase order' });
+    // Don't allow updates to completed orders unless it's a status change
+    if (purchaseOrder.status === 'completed' && req.body.status !== 'completed') {
+      return res.status(400).json({ error: 'Cannot modify completed raw item purchase order' });
     }
 
     // Update fields
     Object.assign(purchaseOrder, req.body);
     await purchaseOrder.save();
 
-    await purchaseOrder.populate('items.part_id', 'part_id name unit');
+    await purchaseOrder.populate('items.raw_item_id', 'item_id name material_type unit');
 
-    res.json(purchaseOrder);
+    console.log('Successfully updated raw item purchase order');
+    res.json({ data: purchaseOrder });
   } catch (error) {
-    console.error('Error updating purchase order:', error);
+    console.error('Error updating raw item purchase order:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
 
-// Delete purchase order
-const deletePurchaseOrder = async (req, res) => {
+// Delete raw item purchase order
+const deleteRawItemPurchaseOrder = async (req, res) => {
   try {
-    const purchaseOrder = await PurchaseOrder.findById(req.params.id);
+    const purchaseOrder = await RawItemPurchaseOrder.findById(req.params.id);
     if (!purchaseOrder) {
-      return res.status(404).json({ error: 'Purchase order not found' });
+      return res.status(404).json({ error: 'Raw item purchase order not found' });
     }
 
     // Don't allow deletion if items have been received
     const hasReceivedItems = purchaseOrder.items.some(item => (item.quantity_received || 0) > 0);
     if (hasReceivedItems) {
       return res.status(400).json({ 
-        error: 'Cannot delete purchase order with received items',
+        error: 'Cannot delete raw item purchase order with received items',
         message: 'This purchase order has received items and cannot be deleted'
       });
     }
 
-    await PurchaseOrder.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Purchase order deleted successfully' });
+    await RawItemPurchaseOrder.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Raw item purchase order deleted successfully' });
   } catch (error) {
-    console.error('Error deleting purchase order:', error);
+    console.error('Error deleting raw item purchase order:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
 
-// Receive items for purchase order
-const receiveItems = async (req, res) => {
+// Receive raw items for purchase order
+const receiveRawItems = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -227,8 +243,8 @@ const receiveItems = async (req, res) => {
     const { received_date, items, notes, receiver_name, carrier_info } = req.body;
     const purchaseOrderId = req.params.id;
 
-    console.log('=== RECEIVE ITEMS ===');
-    console.log('Purchase Order ID:', purchaseOrderId);
+    console.log('=== RECEIVE RAW ITEMS ===');
+    console.log('Raw Item Purchase Order ID:', purchaseOrderId);
     console.log('Items to receive:', JSON.stringify(items, null, 2));
 
     // Validate input
@@ -238,25 +254,24 @@ const receiveItems = async (req, res) => {
     }
 
     // Get purchase order
-    const purchaseOrder = await PurchaseOrder.findById(purchaseOrderId).session(session);
+    const purchaseOrder = await RawItemPurchaseOrder.findById(purchaseOrderId).session(session);
     if (!purchaseOrder) {
       await session.abortTransaction();
-      return res.status(404).json({ error: 'Purchase order not found' });
+      return res.status(404).json({ error: 'Raw item purchase order not found' });
     }
 
     if (purchaseOrder.status === 'completed') {
       await session.abortTransaction();
-      return res.status(400).json({ error: 'Purchase order is already completed' });
+      return res.status(400).json({ error: 'Raw item purchase order is already completed' });
     }
 
     // Process each received item
-    const receiptItems = [];
     const stockTransactions = [];
 
     for (const receivedItem of items) {
-      const { item_id, part_id, quantity_receiving, notes: itemNotes, condition = 'good' } = receivedItem;
+      const { item_id, raw_item_id, quantity_receiving, notes: itemNotes, condition = 'good' } = receivedItem;
 
-      console.log('Processing item:', { item_id, part_id, quantity_receiving });
+      console.log('Processing raw item:', { item_id, raw_item_id, quantity_receiving });
 
       // Find the corresponding item in purchase order
       const poItem = purchaseOrder.items.id(item_id);
@@ -277,19 +292,19 @@ const receiveItems = async (req, res) => {
       // Update purchase order item
       poItem.quantity_received = (poItem.quantity_received || 0) + quantity_receiving;
 
-      // Get part and update stock
-      const part = await Part.findById(part_id).session(session);
-      if (!part) {
+      // Get raw item and update stock
+      const rawItem = await RawItem.findById(raw_item_id).session(session);
+      if (!rawItem) {
         await session.abortTransaction();
-        return res.status(400).json({ error: `Part not found: ${part_id}` });
+        return res.status(400).json({ error: `Raw item not found: ${raw_item_id}` });
       }
 
-      const previousStock = part.quantity_in_stock;
+      const previousStock = rawItem.quantity_in_stock;
       const newStock = previousStock + quantity_receiving;
 
-      // Update part stock
-      await Part.updateOne(
-        { _id: part_id },
+      // Update raw item stock
+      await RawItem.updateOne(
+        { _id: raw_item_id },
         { 
           $set: { 
             quantity_in_stock: newStock,
@@ -306,14 +321,14 @@ const receiveItems = async (req, res) => {
       // Create stock transaction with explicit transaction_id
       const stockTransaction = new StockTransaction({
         transaction_id: transactionId,
-        part_reference: part_id,
+        raw_item_reference: raw_item_id,
         transaction_type: 'DELIVERY',
         quantity: quantity_receiving,
         unit_price: poItem.unit_cost || 0,
         total_value: (poItem.unit_cost || 0) * quantity_receiving,
         reference: purchaseOrder.order_number,
-        reference_type: 'PURCHASE_ORDER',
-        notes: `Received from purchase order ${purchaseOrder.order_number}`,
+        reference_type: 'RAW_ITEM_PURCHASE_ORDER',
+        notes: `Received from raw item purchase order ${purchaseOrder.order_number}`,
         created_by: receiver_name || 'system',
         previous_stock: previousStock,
         new_stock: newStock,
@@ -322,37 +337,7 @@ const receiveItems = async (req, res) => {
 
       await stockTransaction.save({ session });
       stockTransactions.push(stockTransaction);
-
-      // Add to receipt items
-      receiptItems.push({
-        purchase_order_item_id: item_id,
-        part_id: part_id,
-        quantity_received: quantity_receiving,
-        unit_cost: poItem.unit_cost || 0,
-        condition: condition,
-        notes: itemNotes || ''
-      });
     }
-
-    // Create receipt record without receipt_number (let middleware generate it)
-    console.log('Creating receipt with items:', receiptItems.length);
-    
-    const receiptData = {
-      purchase_order_id: purchaseOrderId,
-      received_date: new Date(received_date),
-      items: receiptItems,
-      receiver_name: receiver_name || 'system',
-      delivery_notes: notes || '',
-      carrier_info: carrier_info || ''
-    };
-
-    console.log('Receipt data before save:', JSON.stringify(receiptData, null, 2));
-    
-    const receipt = new PurchaseOrderReceipt(receiptData);
-    
-    console.log('Attempting to save receipt...');
-    await receipt.save({ session });
-    console.log('Receipt saved successfully with number:', receipt.receipt_number);
 
     // Update purchase order status
     purchaseOrder.updateStatus();
@@ -362,12 +347,7 @@ const receiveItems = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Successfully received ${receiptItems.length} item types`,
-      receipt: {
-        receipt_number: receipt.receipt_number,
-        received_date: receipt.received_date,
-        total_items_received: receipt.total_items_received
-      },
+      message: `Successfully received ${items.length} raw item types`,
       purchase_order_status: purchaseOrder.status,
       completion_percentage: purchaseOrder.completion_percentage,
       stock_transactions: stockTransactions.length
@@ -375,7 +355,7 @@ const receiveItems = async (req, res) => {
 
   } catch (error) {
     await session.abortTransaction();
-    console.error('Error receiving items:', error);
+    console.error('Error receiving raw items:', error);
     
     // Provide more detailed error information
     if (error.name === 'ValidationError') {
@@ -416,16 +396,16 @@ async function generateTransactionId(session) {
   }
 }
 
-// Get pending purchase orders (include partial orders)
-const getPendingPurchaseOrders = async (req, res) => {
+// Get pending raw item purchase orders (include partial orders)
+const getPendingRawItemPurchaseOrders = async (req, res) => {
   try {
     // Include both pending and partial orders in "pending" view
-    const orders = await PurchaseOrder.find({ 
+    const orders = await RawItemPurchaseOrder.find({ 
       status: { $in: ['pending', 'partial'] } 
     })
       .populate({
-        path: 'items.part_id',
-        select: 'part_id name unit quantity_in_stock'
+        path: 'items.raw_item_id',
+        select: 'item_id name material_type unit quantity_in_stock'
       })
       .sort({ order_date: -1 });
     
@@ -446,54 +426,40 @@ const getPendingPurchaseOrders = async (req, res) => {
       return orderObj;
     });
     
-    console.log('Pending/Partial orders:', ordersWithStatus.length);
-    res.json({ purchase_orders: ordersWithStatus });
+    console.log('Pending/Partial raw item purchase orders:', ordersWithStatus.length);
+    res.json({ data: ordersWithStatus });
   } catch (error) {
-    console.error('Error fetching pending orders:', error);
+    console.error('Error fetching pending raw item purchase orders:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
 
-// Get partial purchase orders
-const getPartialPurchaseOrders = async (req, res) => {
+// Get partial raw item purchase orders
+const getPartialRawItemPurchaseOrders = async (req, res) => {
   try {
-    const orders = await PurchaseOrder.find({ status: 'partial' })
+    const orders = await RawItemPurchaseOrder.find({ status: 'partial' })
       .populate({
-        path: 'items.part_id',
-        select: 'part_id name unit quantity_in_stock'
+        path: 'items.raw_item_id',
+        select: 'item_id name material_type unit quantity_in_stock'
       })
       .sort({ order_date: -1 });
     
-    res.json({ purchase_orders: orders });
+    res.json({ data: orders });
   } catch (error) {
-    console.error('Error fetching partial orders:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-// Get purchase order receipts
-const getPurchaseOrderReceipts = async (req, res) => {
-  try {
-    const receipts = await PurchaseOrderReceipt.find({ purchase_order_id: req.params.id })
-      .populate('items.part_id', 'part_id name unit')
-      .sort({ received_date: -1 });
-
-    res.json({ receipts });
-  } catch (error) {
-    console.error('Error fetching receipts:', error);
+    console.error('Error fetching partial raw item purchase orders:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 module.exports = {
-  validatePurchaseOrder,
-  getAllPurchaseOrders,
-  getPurchaseOrderById,
-  createPurchaseOrder,
-  updatePurchaseOrder,
-  deletePurchaseOrder,
-  receiveItems,
-  getPendingPurchaseOrders,
-  getPartialPurchaseOrders,
-  getPurchaseOrderReceipts
+  validateRawItemPurchaseOrder,
+  validateRawItemPurchaseOrderUpdate,
+  getAllRawItemPurchaseOrders,
+  getRawItemPurchaseOrderById,
+  createRawItemPurchaseOrder,
+  updateRawItemPurchaseOrder,
+  deleteRawItemPurchaseOrder,
+  receiveRawItems,
+  getPendingRawItemPurchaseOrders,
+  getPartialRawItemPurchaseOrders
 };

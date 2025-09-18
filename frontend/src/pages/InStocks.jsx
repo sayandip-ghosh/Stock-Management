@@ -5,6 +5,7 @@ import PurchaseOrderModal from '../components/PurchaseOrderModal';
 import ReceiveItemsModal from '../components/ReceiveItemsModal';
 import WithdrawModal from '../components/WithdrawModal';
 import { partsAPI, stockManagementAPI, purchaseOrdersAPI } from '../services/api';
+import { generatePurchaseOrderDocument } from '../utils/purchaseOrderDocument';
 
 const InStocks = () => {
   const [parts, setParts] = useState([]);
@@ -23,6 +24,10 @@ const InStocks = () => {
   const [selectedPartForEdit, setSelectedPartForEdit] = useState(null);
   const [isEditPartsModalOpen, setIsEditPartsModalOpen] = useState(false);
   const [isViewAllPendingOrdersModalOpen, setIsViewAllPendingOrdersModalOpen] = useState(false);
+  
+  // Order status tracking
+  const [partOrderDetails, setPartOrderDetails] = useState({});
+  const [orderStatusLoading, setOrderStatusLoading] = useState(false);
 
   // Filter options for part types
   const partTypeOptions = [
@@ -33,6 +38,12 @@ const InStocks = () => {
     fetchData();
     fetchPendingOrders();
   }, []);
+
+  // Track order details changes for debugging
+  useEffect(() => {
+    console.log('Order details updated:', partOrderDetails);
+    console.log('Parts with orders:', Object.keys(partOrderDetails).filter(id => partOrderDetails[id].hasOrder));
+  }, [partOrderDetails]);
 
   const fetchData = async () => {
     try {
@@ -57,9 +68,74 @@ const InStocks = () => {
   const fetchPendingOrders = async () => {
     try {
       const response = await purchaseOrdersAPI.getPending();
-      setPendingOrders(response.data.purchase_orders || []);
+      const orders = response.data.purchase_orders || [];
+      setPendingOrders(orders);
+      calculatePartOrderDetails(orders);
     } catch (error) {
       console.error('Error fetching pending orders:', error);
+    }
+  };
+
+  const calculatePartOrderDetails = (orders) => {
+    const orderDetails = {};
+    
+    console.log('Calculating order details for orders:', orders);
+    
+    orders.forEach(order => {
+      if (order.items && Array.isArray(order.items)) {
+        order.items.forEach(item => {
+          const partId = typeof item.part_id === 'object' ? item.part_id._id : item.part_id;
+          
+          if (partId) {
+            if (!orderDetails[partId]) {
+              orderDetails[partId] = {
+                hasOrder: false,
+                totalOrdered: 0,
+                totalReceived: 0,
+                totalRemaining: 0,
+                orders: []
+              };
+            }
+            
+            const ordered = item.quantity_ordered || item.quantity || 0;
+            const received = item.quantity_received || item.received_quantity || 0;
+            
+            orderDetails[partId].hasOrder = true;
+            orderDetails[partId].totalOrdered += ordered;
+            orderDetails[partId].totalReceived += received;
+            orderDetails[partId].totalRemaining += (ordered - received);
+            orderDetails[partId].orders.push({
+              orderId: order._id,
+              orderNumber: order.order_number,
+              supplierName: order.supplier_name,
+              ordered: ordered,
+              received: received,
+              remaining: ordered - received
+            });
+          }
+        });
+      }
+    });
+    
+    console.log('Final order details:', orderDetails);
+    setPartOrderDetails(orderDetails);
+  };
+
+  const refreshOrderStatus = async () => {
+    try {
+      setOrderStatusLoading(true);
+      console.log('Refreshing order status...');
+      
+      const response = await purchaseOrdersAPI.getPending();
+      const orders = response.data.purchase_orders || [];
+      setPendingOrders(orders);
+      calculatePartOrderDetails(orders);
+      
+      console.log('Order status refreshed');
+    } catch (error) {
+      console.error('Error refreshing order status:', error);
+    } finally {
+      setOrderStatusLoading(false);
     }
   };
 
@@ -147,7 +223,44 @@ const InStocks = () => {
 
   const handleCreatePurchaseOrder = async (formData) => {
     try {
-      await purchaseOrdersAPI.create(formData);
+      console.log('Creating purchase order with data:', formData);
+      
+      // Create the purchase order
+      const response = await purchaseOrdersAPI.create(formData);
+      const createdOrder = response.data;
+      
+      console.log('Purchase order created successfully:', createdOrder);
+      
+      // Generate and download Word document
+      try {
+        // Prepare data for Word document generation
+        const documentData = {
+          order_number: createdOrder.order_number,
+          supplier_name: formData.supplier_name,
+          supplier_contact: formData.supplier_contact,
+          order_date: formData.order_date,
+          expected_delivery_date: formData.expected_delivery_date,
+          notes: formData.notes,
+          total_amount: createdOrder.total_amount || formData.items.reduce((sum, item) => sum + (item.quantity_ordered * item.unit_cost), 0),
+          items: formData.items.map(item => ({
+            part_name: item.part_name,
+            quantity_ordered: item.quantity_ordered,
+            unit: item.unit,
+            cost_per_unit_input: item.cost_per_unit_input,
+            cost_unit_type: item.cost_unit_type,
+            unit_cost: item.unit_cost
+          }))
+        };
+        
+        await generatePurchaseOrderDocument(documentData);
+        console.log('Word document generated and downloaded successfully');
+      } catch (docError) {
+        console.error('Error generating Word document:', docError);
+        // Don't fail the entire operation if document generation fails
+        alert('Purchase order created successfully, but there was an error generating the Word document.');
+      }
+      
+      // Refresh data and close modal
       fetchPendingOrders();
       setIsPurchaseOrderModalOpen(false);
     } catch (error) {
@@ -168,10 +281,16 @@ const InStocks = () => {
         carrier_info: receiptData.carrier_info || ''
       });
       
-      fetchData(); // Refresh parts data
-      fetchPendingOrders(); // Refresh pending orders
+      // Close modal first
       setIsReceiveItemsModalOpen(false);
       setSelectedPurchaseOrder(null);
+      
+      // Refresh data with delay to ensure backend processing
+      setTimeout(async () => {
+        await refreshOrderStatus(); // Refresh order status first
+        await fetchData(); // Then refresh parts data
+      }, 1000);
+      
     } catch (error) {
       console.error('Error receiving items:', error);
       throw error;
@@ -238,22 +357,8 @@ const InStocks = () => {
     <Layout>
       <div className="space-y-6">
         {/* Page Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">Stock Management</h1>
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search by name, ID, or category"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              />
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <span className="text-gray-400">🔍</span>
-              </div>
-            </div>
-          </div>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Stock Management</h1>
         </div>
 
         {/* Stats Cards */}
@@ -387,38 +492,67 @@ const InStocks = () => {
 
         {/* Stock Table */}
         <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <div className="flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
               <h2 className="text-lg font-semibold text-gray-900">Current Stock Levels</h2>
-              <div className="flex items-center space-x-3">
-                <button 
-                  onClick={() => setIsPurchaseOrderModalOpen(true)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Create Purchase Order
-                </button>
-                <button 
-                  onClick={() => setIsPartsModalOpen(true)}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  Add New Part
-                </button>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+                <div className="relative flex-1 lg:flex-none">
+                  <input
+                    type="text"
+                    placeholder="Search by name, ID, or category"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full lg:w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className="text-gray-400">🔍</span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setIsPurchaseOrderModalOpen(true)}
+                    className="flex-1 sm:flex-none bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base"
+                  >
+                    <span className="sm:hidden">📋</span>
+                    <span className="hidden sm:inline">Create Purchase Order</span>
+                  </button>
+                  <button 
+                    onClick={() => setIsPartsModalOpen(true)}
+                    className="flex-1 sm:flex-none bg-green-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm sm:text-base"
+                  >
+                    <span className="sm:hidden">➕</span>
+                    <span className="hidden sm:inline">Add New Part</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
           
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-96 overflow-y-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Part ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Stock</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Min Stock</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Part ID</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
+                  <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                  <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
+                    <div className="flex items-center space-x-1">
+                      <span className="hidden sm:inline">Order</span>
+                      <span className="sm:hidden">📋</span>
+                      <button
+                        onClick={refreshOrderStatus}
+                        disabled={orderStatusLoading}
+                        className="text-blue-600 hover:text-blue-800 disabled:text-gray-400"
+                        title="Refresh order status"
+                      >
+                        <svg className={`w-3 h-3 ${orderStatusLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </button>
+                    </div>
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -442,61 +576,98 @@ const InStocks = () => {
 
                     return (
                       <tr key={part._id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+                          <div className="block sm:hidden text-xs text-gray-500 mb-1">{part.type || 'Uncategorized'}</div>
                           {part.part_id || 'N/A'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center mr-3">
+                        <td className="px-3 sm:px-6 py-4">
+                          <div className="flex items-start">
+                            <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
                               <span className="text-gray-600 text-xs">📦</span>
                             </div>
-                            <button
-                              onClick={() => {
-                                setSelectedPartForEdit(part);
-                                setIsEditPartsModalOpen(true);
-                              }}
-                              className="text-sm text-gray-900 hover:text-purple-600 hover:underline text-left"
-                            >
-                              {part.name || 'Unnamed Part'}
-                            </button>
+                            <div className="min-w-0 flex-1">
+                              <button
+                                onClick={() => {
+                                  setSelectedPartForEdit(part);
+                                  setIsEditPartsModalOpen(true);
+                                }}
+                                className="text-sm text-gray-900 hover:text-purple-600 hover:underline text-left block truncate"
+                              >
+                                {part.name || 'Unnamed Part'}
+                              </button>
+                              <div className="text-xs text-gray-500 mt-1">
+                                Min: {minLevel} {part.unit || 'pcs'}
+                                {part.weight > 0 && (
+                                  <span className="ml-2">| Weight: {part.weight} kg</span>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{part.type || 'Uncategorized'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">{quantity}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{minLevel}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{part.unit || 'pcs'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusClass}`}>
-                            {statusText}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <div className="flex items-center space-x-2">
-                            <button 
-                              onClick={() => handleViewHistory(part)}
-                              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                            >
-                              History
-                            </button>
-                            {quantity > 0 && (
-                              <button 
-                                onClick={() => {
-                                  setSelectedPart(part);
-                                  setIsWithdrawModalOpen(true);
-                                }}
-                                className="text-red-600 hover:text-red-800 text-sm font-medium"
-                              >
-                                Withdraw
-                              </button>
+                        <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{part.type || 'Uncategorized'}</td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900 font-medium">{quantity}</div>
+                          <div className="text-xs text-gray-500">
+                            {part.unit || 'pcs'}
+                            {part.weight > 0 && (
+                              <span className="block">Total: {(quantity * part.weight).toFixed(2)} kg</span>
                             )}
                           </div>
+                        </td>
+                        <td className="px-2 py-4 whitespace-nowrap text-center">
+                          {(() => {
+                            const orderDetail = partOrderDetails[part._id];
+                            const hasOrder = orderDetail && orderDetail.hasOrder;
+                            
+                            return (
+                              <div className="relative group flex justify-center">
+                                {orderStatusLoading ? (
+                                  <span className="inline-flex w-7 h-7 items-center justify-center text-sm font-semibold rounded-full bg-gray-100 text-gray-600 animate-pulse">
+                                    ⏳
+                                  </span>
+                                ) : (
+                                  <span className={`inline-flex w-7 h-7 items-center justify-center text-sm font-semibold rounded-full cursor-help transition-all duration-300 hover:scale-110 ${
+                                    hasOrder 
+                                      ? 'bg-orange-500 text-white shadow-md animate-pulse hover:bg-orange-600' 
+                                      : 'bg-green-500 text-white shadow-sm hover:bg-green-600'
+                                  }`}>
+                                    {hasOrder ? '�' : '✅'}
+                                  </span>
+                                )}
+                                
+                                {/* Tooltip */}
+                                {!orderStatusLoading && (
+                                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10 min-w-max">
+                                    {hasOrder ? (
+                                      <div>
+                                        <div className="font-medium mb-1">📋 Order Details:</div>
+                                        <div>Ordered: {orderDetail.totalOrdered}</div>
+                                        <div>Received: {orderDetail.totalReceived}</div>
+                                        <div>Remaining: {orderDetail.totalRemaining}</div>
+                                      </div>
+                                    ) : (
+                                      <div>✅ No pending orders</div>
+                                    )}
+                                    {/* Arrow */}
+                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusClass}`}>
+                            <span className="sm:hidden">{statusText.charAt(0)}</span>
+                            <span className="hidden sm:inline">{statusText}</span>
+                          </span>
                         </td>
                       </tr>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan="8" className="px-6 py-4 text-center">
+                    <td colSpan="6" className="px-3 sm:px-6 py-4 text-center">
                       <div className="py-8">
                         <div className="text-gray-400 text-4xl mb-4">📦</div>
                         <div className="text-gray-500 text-lg font-medium mb-2">
@@ -532,6 +703,15 @@ const InStocks = () => {
         part={selectedPartForEdit}
         onSave={handleEditPart}
         onDelete={handleDeletePart}
+        onViewHistory={(part) => {
+          setIsEditPartsModalOpen(false);
+          handleViewHistory(part);
+        }}
+        onWithdraw={(part) => {
+          setIsEditPartsModalOpen(false);
+          setSelectedPart(part);
+          setIsWithdrawModalOpen(true);
+        }}
       />
 
       {/* Purchase Order Modal */}
@@ -798,6 +978,21 @@ const ViewAllPendingOrdersModal = ({ isOpen, onClose, orders, onReceiveItems, on
                       >
                         <span>📦</span>
                         <span>Receive</span>
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const { generatePurchaseOrderDocument } = await import('../utils/purchaseOrderDocument');
+                            await generatePurchaseOrderDocument(order);
+                          } catch (error) {
+                            console.error('Error generating document:', error);
+                            alert('Error generating document. Please try again.');
+                          }
+                        }}
+                        className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 flex items-center justify-center space-x-1"
+                      >
+                        <span>📄</span>
+                        <span>Download</span>
                       </button>
                       {/* <button
                         onClick={() => onViewOrder(order)}

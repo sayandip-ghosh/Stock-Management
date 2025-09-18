@@ -1,9 +1,9 @@
 const mongoose = require('mongoose');
 
-const purchaseOrderItemSchema = new mongoose.Schema({
-  part_id: {
+const rawItemPurchaseOrderItemSchema = new mongoose.Schema({
+  raw_item_id: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Part',
+    ref: 'RawItem',
     required: true
   },
   quantity_ordered: {
@@ -17,16 +17,6 @@ const purchaseOrderItemSchema = new mongoose.Schema({
     min: 0
   },
   unit_cost: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
-  cost_unit_type: {
-    type: String,
-    enum: ['piece', 'kg'],
-    default: 'piece'
-  },
-  cost_per_unit_input: {
     type: Number,
     default: 0,
     min: 0
@@ -45,7 +35,7 @@ const purchaseOrderItemSchema = new mongoose.Schema({
   _id: true
 });
 
-const purchaseOrderSchema = new mongoose.Schema({
+const rawItemPurchaseOrderSchema = new mongoose.Schema({
   order_number: {
     type: String,
     unique: true,
@@ -76,7 +66,7 @@ const purchaseOrderSchema = new mongoose.Schema({
     enum: ['pending', 'partial', 'completed', 'cancelled'],
     default: 'pending'
   },
-  items: [purchaseOrderItemSchema],
+  items: [rawItemPurchaseOrderItemSchema],
   total_amount: {
     type: Number,
     default: 0,
@@ -100,17 +90,17 @@ const purchaseOrderSchema = new mongoose.Schema({
 });
 
 // Indexes
-purchaseOrderSchema.index({ order_number: 1 });
-purchaseOrderSchema.index({ supplier_name: 1 });
-purchaseOrderSchema.index({ status: 1 });
-purchaseOrderSchema.index({ order_date: -1 });
+rawItemPurchaseOrderSchema.index({ order_number: 1 });
+rawItemPurchaseOrderSchema.index({ supplier_name: 1 });
+rawItemPurchaseOrderSchema.index({ status: 1 });
+rawItemPurchaseOrderSchema.index({ order_date: -1 });
 
 // Pre-save middleware to generate order number and calculate totals
-purchaseOrderSchema.pre('save', async function(next) {
+rawItemPurchaseOrderSchema.pre('save', async function(next) {
   // Only generate order number if it doesn't exist
   if (!this.order_number) {
     try {
-      // Get the count of all purchase orders to determine the next number
+      // Get the count of all raw item purchase orders to determine the next number
       const count = await this.constructor.countDocuments({});
       let nextNumber = count + 1;
       
@@ -122,7 +112,7 @@ purchaseOrderSchema.pre('save', async function(next) {
       );
       
       if (lastOrder && lastOrder.order_number) {
-        const match = lastOrder.order_number.match(/PO(\d+)/);
+        const match = lastOrder.order_number.match(/RIPO(\d+)/);
         if (match) {
           const lastNumber = parseInt(match[1]);
           nextNumber = Math.max(nextNumber, lastNumber + 1);
@@ -134,12 +124,12 @@ purchaseOrderSchema.pre('save', async function(next) {
       let attempts = 0;
       
       do {
-        orderNumber = `PO${String(nextNumber + attempts).padStart(6, '0')}`;
+        orderNumber = `RIPO${String(nextNumber + attempts).padStart(6, '0')}`;
         const existingOrder = await this.constructor.findOne({ order_number: orderNumber });
         
         if (!existingOrder) {
           this.order_number = orderNumber;
-          console.log('Generated order number:', this.order_number);
+          console.log('Generated raw item purchase order number:', this.order_number);
           break;
         }
         
@@ -148,58 +138,31 @@ purchaseOrderSchema.pre('save', async function(next) {
       
       // Fallback if all attempts failed
       if (!this.order_number) {
-        this.order_number = `PO${Date.now().toString().slice(-6)}`;
-        console.log('Generated fallback order number:', this.order_number);
+        this.order_number = `RIPO${Date.now().toString().slice(-6)}`;
+        console.log('Generated fallback raw item purchase order number:', this.order_number);
       }
       
     } catch (error) {
-      console.error('Error generating order number:', error);
+      console.error('Error generating raw item purchase order number:', error);
       // Fallback to timestamp-based number
-      this.order_number = `PO${Date.now().toString().slice(-6)}`;
+      this.order_number = `RIPO${Date.now().toString().slice(-6)}`;
     }
   }
   
   // Calculate item totals and order total
   this.total_amount = 0;
   if (this.items && this.items.length > 0) {
-    for (let item of this.items) {
-      try {
-        // Handle cost conversion based on unit type
-        if (item.cost_unit_type === 'kg' && item.cost_per_unit_input) {
-          // Find the part to get its weight
-          const Part = mongoose.model('Part');
-          const part = await Part.findById(item.part_id);
-          
-          if (part && part.weight > 0) {
-            // Convert cost per kg to cost per piece
-            item.unit_cost = item.cost_per_unit_input * part.weight;
-          } else {
-            // If no weight is available, use the input value directly
-            item.unit_cost = item.cost_per_unit_input;
-          }
-        } else {
-          // Use the input value directly for 'piece' unit type
-          item.unit_cost = item.cost_per_unit_input || 0;
-        }
-        
-        // Calculate total cost for this item
-        item.total_cost = (item.quantity_ordered || 0) * (item.unit_cost || 0);
-        this.total_amount += item.total_cost;
-      } catch (error) {
-        console.error('Error calculating item cost:', error);
-        // Fallback to direct calculation
-        item.unit_cost = item.cost_per_unit_input || 0;
-        item.total_cost = (item.quantity_ordered || 0) * (item.unit_cost || 0);
-        this.total_amount += item.total_cost;
-      }
-    }
+    this.items.forEach(item => {
+      item.total_cost = (item.quantity_ordered || 0) * (item.unit_cost || 0);
+      this.total_amount += item.total_cost;
+    });
   }
   
   next();
 });
 
 // Instance method to update status based on received quantities
-purchaseOrderSchema.methods.updateStatus = function() {
+rawItemPurchaseOrderSchema.methods.updateStatus = function() {
   if (!this.items || this.items.length === 0) {
     this.status = 'pending';
     return;
@@ -216,7 +179,7 @@ purchaseOrderSchema.methods.updateStatus = function() {
     if (received > 0) hasAnyReceived = true;
   });
 
-  console.log('Status update calculation:', {
+  console.log('Raw item purchase order status update calculation:', {
     totalOrdered,
     totalReceived,
     hasAnyReceived,
@@ -233,11 +196,11 @@ purchaseOrderSchema.methods.updateStatus = function() {
     this.status = 'pending';
   }
 
-  console.log('Updated status to:', this.status);
+  console.log('Updated raw item purchase order status to:', this.status);
 };
 
 // Virtual for completion percentage
-purchaseOrderSchema.virtual('completion_percentage').get(function() {
+rawItemPurchaseOrderSchema.virtual('completion_percentage').get(function() {
   if (!this.items || this.items.length === 0) return 0;
   
   const totalOrdered = this.items.reduce((sum, item) => sum + (item.quantity_ordered || 0), 0);
@@ -247,7 +210,7 @@ purchaseOrderSchema.virtual('completion_percentage').get(function() {
 });
 
 // Static method to get orders by status - include partial orders in pending view
-purchaseOrderSchema.statics.getByStatus = function(status) {
+rawItemPurchaseOrderSchema.statics.getByStatus = function(status) {
   let query = {};
   
   if (status === 'pending') {
@@ -258,8 +221,10 @@ purchaseOrderSchema.statics.getByStatus = function(status) {
   }
   
   return this.find(query)
-    .populate('items.part_id', 'part_id name unit')
+    .populate('items.raw_item_id', 'item_id name material_type unit')
     .sort({ order_date: -1 });
 };
 
-module.exports = mongoose.model('PurchaseOrder', purchaseOrderSchema);
+module.exports = mongoose.model('RawItemPurchaseOrder', rawItemPurchaseOrderSchema);
+
+

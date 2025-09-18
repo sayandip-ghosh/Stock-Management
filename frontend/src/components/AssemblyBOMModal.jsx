@@ -293,7 +293,7 @@ const AssemblyBOMModal = ({ isOpen, onClose, assembly, onUpdate }) => {
                                     {part.quantity_in_stock} {part.unit}
                                   </div>
                                   <div className="text-xs text-gray-400">
-                                    ${(part.cost_per_unit || 0).toFixed(2)}
+                                    ₹{(part.cost_per_unit || 0).toFixed(2)}
                                   </div>
                                 </div>
                               </div>
@@ -325,7 +325,7 @@ const AssemblyBOMModal = ({ isOpen, onClose, assembly, onUpdate }) => {
                             }`}>
                               {selectedPart.quantity_in_stock} {selectedPart.unit}
                             </span> | 
-                            Cost: ${(selectedPart.cost_per_unit || 0).toFixed(2)} per {selectedPart.unit}
+                            Cost: ₹{(selectedPart.cost_per_unit || 0).toFixed(2)} per {selectedPart.unit}
                           </div>
                         </div>
                       ) : null;
@@ -382,7 +382,7 @@ const AssemblyBOMModal = ({ isOpen, onClose, assembly, onUpdate }) => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-medium text-gray-900">BOM Items ({bomItems.length})</h3>
               <div className="text-sm text-gray-600">
-                Total Cost per Assembly: <span className="font-semibold">${calculateTotalCost()}</span>
+                Total Cost per Assembly: <span className="font-semibold">₹{calculateTotalCost()}</span>
               </div>
             </div>
 
@@ -394,8 +394,8 @@ const AssemblyBOMModal = ({ isOpen, onClose, assembly, onUpdate }) => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Part</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty Required</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Available Stock</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Cost</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Cost</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Cost (₹)</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Cost (₹)</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
@@ -443,10 +443,10 @@ const AssemblyBOMModal = ({ isOpen, onClose, assembly, onUpdate }) => {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            ${partCost.toFixed(2)}
+                            ₹{partCost.toFixed(2)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                            ${totalCost.toFixed(2)}
+                            ₹{totalCost.toFixed(2)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${

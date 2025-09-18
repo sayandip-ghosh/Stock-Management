@@ -8,7 +8,11 @@ const {
   deletePart,
   getLowStockAlerts,
   updateStockQuantity,
-  getPartStatistics
+  getPartStatistics,
+  createPartsFromRawItems,
+  getManufacturingRecords,
+  getManufacturingRecordById,
+  getManufacturingStatistics
 } = require('../controllers/partController');
 
 const router = express.Router();
@@ -36,5 +40,18 @@ router.get('/stats/summary', getPartStatistics);
 
 // POST update stock quantity
 router.post('/:id/stock', updateStockQuantity);
+
+// POST create parts from raw items
+router.post('/create-from-raw-items', createPartsFromRawItems);
+
+// Manufacturing Records Routes
+// GET manufacturing records
+router.get('/manufacturing-records', getManufacturingRecords);
+
+// GET manufacturing record by ID
+router.get('/manufacturing-records/:id', getManufacturingRecordById);
+
+// GET manufacturing statistics
+router.get('/manufacturing-records/stats/summary', getManufacturingStatistics);
 
 module.exports = router;

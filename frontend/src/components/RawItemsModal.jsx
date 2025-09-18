@@ -1,80 +1,59 @@
 import React, { useState, useEffect } from 'react';
 
-const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHistory, onWithdraw }) => {
+const RawItemsModal = ({ isOpen, onClose, rawItem = null, onSave, onDelete }) => {
   const [formData, setFormData] = useState({
-    part_id: '',
+    item_id: '',
     name: '',
-    type: '',
+    material_type: '',
     quantity_in_stock: 0,
     min_stock_level: 10,
     cost_per_unit: 0,
-    weight: 0,
-    category: '',
     description: '',
     location: '',
-    unit: 'pcs'
+    unit: 'kg'
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [viewMode, setViewMode] = useState(false);
 
   useEffect(() => {
-    if (part) {
+    if (rawItem) {
       setFormData({
-        part_id: part.part_id || '',
-        name: part.name || '',
-        type: part.type || '',
-        quantity_in_stock: part.quantity_in_stock || 0,
-        min_stock_level: part.min_stock_level || 10,
-        cost_per_unit: part.cost_per_unit || 0,
-        weight: part.weight || 0,
-        category: part.category || part.type || '',
-        description: part.description || '',
-        location: part.location || '',
-        unit: part.unit || 'pcs'
+        item_id: rawItem.item_id || '',
+        name: rawItem.name || '',
+        material_type: rawItem.material_type || '',
+        quantity_in_stock: rawItem.quantity_in_stock || 0,
+        min_stock_level: rawItem.min_stock_level || 10,
+        cost_per_unit: rawItem.cost_per_unit || 0,
+        description: rawItem.description || '',
+        location: rawItem.location || '',
+        unit: rawItem.unit || 'kg'
       });
-      setViewMode(true); // Start in view mode for existing parts
+      setViewMode(true);
     } else {
       setFormData({
-        part_id: '',
+        item_id: '',
         name: '',
-        type: '',
+        material_type: '',
         quantity_in_stock: 0,
         min_stock_level: 10,
         cost_per_unit: 0,
-        weight: 0,
-        category: '',
         description: '',
         location: '',
-        unit: 'pcs'
+        unit: 'kg'
       });
-      setViewMode(false); // Start in edit mode for new parts
+      setViewMode(false);
     }
     setErrors({});
-  }, [part]);
+  }, [rawItem]);
 
   const handleInputChange = (e) => {
     const { name, value, type } = e.target;
-    
-    let processedValue = value;
-    if (type === 'number') {
-      // Handle numeric inputs without losing precision
-      if (value === '' || value === '.') {
-        processedValue = '';
-      } else if (!isNaN(value) && !isNaN(parseFloat(value))) {
-        // Keep the exact value as entered, don't convert to float immediately
-        processedValue = value;
-      } else {
-        processedValue = 0;
-      }
-    }
-    
     setFormData(prev => ({
       ...prev,
-      [name]: processedValue
+      [name]: type === 'number' ? parseFloat(value) || 0 : value
     }));
     
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
@@ -84,27 +63,23 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHist
     const newErrors = {};
     
     if (!formData.name.trim()) {
-      newErrors.name = 'Product name is required';
+      newErrors.name = 'Item name is required';
     }
              
-    if (!formData.type.trim()) {
-      newErrors.type = 'Category/Type is required';
+    if (!formData.material_type.trim()) {
+      newErrors.material_type = 'Material type is required';
     }
              
-    if (parseFloat(formData.quantity_in_stock) < 0) {
+    if (formData.quantity_in_stock < 0) {
       newErrors.quantity_in_stock = 'Stock quantity cannot be negative';
     }
     
-    if (parseFloat(formData.min_stock_level) < 0) {
+    if (formData.min_stock_level < 0) {
       newErrors.min_stock_level = 'Minimum stock level cannot be negative';
     }
     
-    if (parseFloat(formData.cost_per_unit) < 0) {
+    if (formData.cost_per_unit < 0) {
       newErrors.cost_per_unit = 'Price cannot be negative';
-    }
-    
-    if (parseFloat(formData.weight) < 0) {
-      newErrors.weight = 'Weight cannot be negative';
     }
     
     setErrors(newErrors);
@@ -120,44 +95,33 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHist
     
     setLoading(true);
     try {
-      // For editing existing parts, don't send part_id in the update data
       const submitData = { ...formData };
-      if (part) {
-        delete submitData.part_id; // Part ID shouldn't be updated
+      if (rawItem) {
+        delete submitData.item_id;
       }
-      
-      // Convert numeric string values to proper numbers
-      submitData.quantity_in_stock = parseFloat(submitData.quantity_in_stock) || 0;
-      submitData.min_stock_level = parseFloat(submitData.min_stock_level) || 0;
-      submitData.cost_per_unit = parseFloat(submitData.cost_per_unit) || 0;
-      submitData.weight = parseFloat(submitData.weight) || 0;
-      
-      // Map category to type for backend compatibility
-      submitData.type = formData.type || formData.category;
-      submitData.category = formData.category || formData.type;
       
       await onSave(submitData);
       onClose();
     } catch (error) {
-      console.error('Error saving part:', error);
+      console.error('Error saving raw item:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!part) return;
+    if (!rawItem) return;
     
-    if (!window.confirm('Are you sure you want to delete this part?')) {
+    if (!window.confirm('Are you sure you want to delete this raw item?')) {
       return;
     }
     
     setLoading(true);
     try {
-      await onDelete(part._id);
+      await onDelete(rawItem._id);
       onClose();
     } catch (error) {
-      console.error('Error deleting part:', error);
+      console.error('Error deleting raw item:', error);
     } finally {
       setLoading(false);
     }
@@ -172,16 +136,16 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHist
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-semibold text-gray-900">
-                {part ? (viewMode ? 'Part Details' : 'Edit Part') : 'Add New Part'}
+                {rawItem ? (viewMode ? 'Raw Item Details' : 'Edit Raw Item') : 'Add New Raw Item'}
               </h2>
-              {part && (
+              {rawItem && (
                 <p className="text-sm text-gray-600 mt-1">
-                  Part ID: {formData.part_id} | Created: {new Date(part.createdAt).toLocaleDateString()}
+                  Item Code: {formData.item_id} | Created: {new Date(rawItem.createdAt).toLocaleDateString()}
                 </p>
               )}
             </div>
             <div className="flex items-center space-x-2">
-              {part && (
+              {rawItem && (
                 <button
                   onClick={() => setViewMode(!viewMode)}
                   className="px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
@@ -201,15 +165,15 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHist
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Part ID (Read-only for existing parts) */}
-            {part && (
+            {/* Item Code (Read-only for existing items) */}
+            {rawItem && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Part ID
+                  Item Code
                 </label>
                 <input
                   type="text"
-                  value={formData.part_id}
+                  value={formData.item_id}
                   readOnly
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
                 />
@@ -217,10 +181,10 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHist
               </div>
             )}
 
-            {/* Product Name */}
-            <div className={part ? '' : 'md:col-span-2'}>
+            {/* Item Name */}
+            <div className={rawItem ? '' : 'md:col-span-2'}>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Product Name *
+                Item Name *
               </label>
               <input
                 type="text"
@@ -232,34 +196,33 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHist
                   viewMode ? 'bg-gray-50 border-gray-200' : 
                   errors.name ? 'border-red-500' : 'border-gray-300'
                 }`}
-                placeholder="Enter product name"
+                placeholder="Enter item name"
               />
               {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
             </div>
 
-            {/* Category/Type */}
+            {/* Material Type */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Category/Type *
+                Material Type *
               </label>
               {viewMode ? (
                 <input
                   type="text"
-                  value={formData.type}
+                  value={formData.material_type}
                   readOnly
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50"
                 />
               ) : (
                 <select
-                  name="type"
-                  value={formData.type}
+                  name="material_type"
+                  value={formData.material_type}
                   onChange={handleInputChange}
                   className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                    errors.type ? 'border-red-500' : 'border-gray-300'
+                    errors.material_type ? 'border-red-500' : 'border-gray-300'
                   }`}
-                  style={{ maxHeight: '200px', overflowY: 'auto' }}
                 >
-                  <option value="">Select a type</option>
+                  <option value="">Select material type</option>
                   <option value="Copper">Copper</option>
                   <option value="GI">GI (Galvanized Iron)</option>
                   <option value="SS">SS (Stainless Steel)</option>
@@ -267,9 +230,11 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHist
                   <option value="PB">PB (Phosphorus Bronze)</option>
                   <option value="Aluminium">Aluminium</option>
                   <option value="Nylon">Nylon</option>
+                  <option value="Plastic">Plastic</option>
+                  <option value="Rubber">Rubber</option>
                 </select>
               )}
-              {errors.type && <p className="text-red-500 text-sm mt-1">{errors.type}</p>}
+              {errors.material_type && <p className="text-red-500 text-sm mt-1">{errors.material_type}</p>}
             </div>
 
             {/* Stock Quantity */}
@@ -326,7 +291,7 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHist
                 onChange={handleInputChange}
                 readOnly={viewMode}
                 min="0"
-                step="any"
+                step="0.01"
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
                   viewMode ? 'bg-gray-50 border-gray-200' :
                   errors.cost_per_unit ? 'border-red-500' : 'border-gray-300'
@@ -334,28 +299,6 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHist
                 placeholder="0.00"
               />
               {errors.cost_per_unit && <p className="text-red-500 text-sm mt-1">{errors.cost_per_unit}</p>}
-            </div>
-
-            {/* Weight */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Weight (kg)
-              </label>
-              <input
-                type="number"
-                name="weight"
-                value={formData.weight}
-                onChange={handleInputChange}
-                readOnly={viewMode}
-                min="0"
-                step="any"
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                  viewMode ? 'bg-gray-50 border-gray-200' :
-                  errors.weight ? 'border-red-500' : 'border-gray-300'
-                }`}
-                placeholder="0.00"
-              />
-              {errors.weight && <p className="text-red-500 text-sm mt-1">{errors.weight}</p>}
             </div>
 
             {/* Unit */}
@@ -376,16 +319,20 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHist
                   value={formData.unit}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  style={{ maxHeight: '200px', overflowY: 'auto' }}
                 >
-                  <option value="pcs">Pieces</option>
                   <option value="kg">Kilograms</option>
+                  <option value="g">Grams</option>
                   <option value="m">Meters</option>
+                  <option value="cm">Centimeters</option>
                   <option value="l">Liters</option>
+                  <option value="ml">Milliliters</option>
+                  <option value="pcs">Pieces</option>
                   <option value="box">Box</option>
+                  <option value="roll">Roll</option>
                 </select>
               )}
             </div>
+
           </div>
 
           {/* Description */}
@@ -402,7 +349,7 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHist
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
                 viewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300'
               }`}
-              placeholder="Enter part description"
+              placeholder="Enter item description"
             />
           </div>
 
@@ -426,7 +373,7 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHist
 
           {/* Status Display */}
           <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <span className="text-sm font-medium text-gray-700">Stock Status:</span>
                 <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -440,25 +387,13 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHist
               </div>
               <div>
                 <span className="text-sm text-gray-600">
-                  <span className="font-medium">Total Value:</span> ₹{(formData.quantity_in_stock * formData.cost_per_unit).toFixed(2)}
+                  <span className="font-medium">Total Value:</span> ${(formData.quantity_in_stock * formData.cost_per_unit).toFixed(2)}
                 </span>
               </div>
-              <div>
-                <span className="text-sm text-gray-600">
-                  <span className="font-medium">Total Weight:</span> {(formData.quantity_in_stock * formData.weight).toFixed(2)} kg
-                </span>
-              </div>
-              {part && (
+              {rawItem && (
                 <div>
                   <span className="text-sm text-gray-600">
-                    <span className="font-medium">Unit Weight:</span> {formData.weight} kg
-                  </span>
-                </div>
-              )}
-              {part && (
-                <div>
-                  <span className="text-sm text-gray-600">
-                    <span className="font-medium">Last Updated:</span> {new Date(part.updatedAt).toLocaleDateString()}
+                    <span className="font-medium">Last Updated:</span> {new Date(rawItem.updatedAt).toLocaleDateString()}
                   </span>
                 </div>
               )}
@@ -468,40 +403,14 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHist
           {/* Action Buttons */}
           <div className="flex items-center justify-between pt-4 border-t border-gray-200">
             <div className="flex space-x-3">
-              {part && viewMode && (
-                <>
-                  {/* History Button */}
-                  <button
-                    type="button"
-                    onClick={() => onViewHistory && onViewHistory(part)}
-                    className="px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 flex items-center space-x-2"
-                  >
-                    <span>📊</span>
-                    <span>View History</span>
-                  </button>
-                  
-                  {/* Withdraw Button - only show if part has stock */}
-                  {part.quantity_in_stock > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => onWithdraw && onWithdraw(part)}
-                      className="px-4 py-2 text-orange-600 border border-orange-600 rounded-lg hover:bg-orange-50 flex items-center space-x-2"
-                    >
-                      <span>📤</span>
-                      <span>Withdraw</span>
-                    </button>
-                  )}
-                </>
-              )}
-              
-              {part && !viewMode && onDelete && (
+              {rawItem && !viewMode && onDelete && (
                 <button
                   type="button"
                   onClick={handleDelete}
                   disabled={loading}
                   className="px-4 py-2 text-red-600 border border-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
                 >
-                  {loading ? 'Deleting...' : 'Delete Part'}
+                  {loading ? 'Deleting...' : 'Delete Item'}
                 </button>
               )}
             </div>
@@ -519,16 +428,7 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHist
                   disabled={loading}
                   className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
                 >
-                  {loading ? 'Saving...' : (part ? 'Update Part' : 'Create Part')}
-                </button>
-              )}
-              {part && viewMode && (
-                <button
-                  type="button"
-                  onClick={() => setViewMode(false)}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-                >
-                  Edit Part
+                  {loading ? 'Saving...' : (rawItem ? 'Update Item' : 'Create Item')}
                 </button>
               )}
             </div>
@@ -539,4 +439,4 @@ const PartsModal = ({ isOpen, onClose, part = null, onSave, onDelete, onViewHist
   );
 };
 
-export default PartsModal;
+export default RawItemsModal;

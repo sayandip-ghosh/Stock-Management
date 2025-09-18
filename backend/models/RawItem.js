@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
-const partSchema = new mongoose.Schema({
-  part_id: {
+const rawItemSchema = new mongoose.Schema({
+  item_id: {
     type: String,
     unique: true,
     trim: true,
@@ -11,25 +11,27 @@ const partSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true,
-    maxlength: 100
+    maxlength: 200
   },
-  type: {
+  material_type: {
     type: String,
     required: true,
-    enum: ['Copper', 'GI', 'SS', 'Brass', 'PB', 'Aluminium', 'Nylon'],
-    default: 'Copper'
+    
   },
-  description: {
-    type: String,
-    trim: true,
-    maxlength: 500
+  dimensions: {
+    width: Number,
+    height: Number,
+    length: Number,
+    thickness: Number,
+    diameter: Number,
+    gauge: String
   },
   unit: {
     type: String,
     required: true,
     trim: true,
     maxlength: 20,
-    default: 'pcs'
+    default: 'KG'
   },
   quantity_in_stock: {
     type: Number,
@@ -48,24 +50,19 @@ const partSchema = new mongoose.Schema({
     min: 0,
     default: 0
   },
-  weight: {
-    type: Number,
-    min: 0,
-    default: 0
-  },
   location: {
     type: String,
     trim: true,
     maxlength: 100
   },
-  category: {
+  description: {
     type: String,
     trim: true,
-    enum: ['Copper', 'GI', 'SS', 'Brass', 'PB', 'Aluminium', 'Nylon'],
-    maxlength: 50,
-    default: function() {
-      return this.type || 'Copper';
-    }
+    maxlength: 500
+  },
+  specifications: {
+    type: Map,
+    of: String
   },
   is_active: {
     type: Boolean,
@@ -74,30 +71,34 @@ const partSchema = new mongoose.Schema({
   last_restocked: {
     type: Date
   },
+  created_by_migration: {
+    type: Boolean,
+    default: false
+  }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true },
-  collection: 'parts'
+  collection: 'rawItems'
 });
 
-// Pre-save middleware to generate part_id if not provided
-partSchema.pre('save', async function(next) {
-  if (!this.part_id) {
+// Pre-save middleware to generate item_id if not provided
+rawItemSchema.pre('save', async function(next) {
+  if (!this.item_id) {
     try {
-      // Get the count of all parts to determine the next number
+      // Get the count of all raw items to determine the next number
       const count = await this.constructor.countDocuments({});
       let nextNumber = count + 1;
       
-      // Try to find the highest existing part ID
-      const lastPart = await this.constructor.findOne(
-        { part_id: { $exists: true, $ne: null } },
-        { part_id: 1 },
+      // Try to find the highest existing raw item ID
+      const lastItem = await this.constructor.findOne(
+        { item_id: { $exists: true, $ne: null } },
+        { item_id: 1 },
         { sort: { createdAt: -1 } }
       );
       
-      if (lastPart && lastPart.part_id) {
-        const match = lastPart.part_id.match(/P(\d+)/);
+      if (lastItem && lastItem.item_id) {
+        const match = lastItem.item_id.match(/RI(\d+)/);
         if (match) {
           const lastNumber = parseInt(match[1]);
           nextNumber = Math.max(nextNumber, lastNumber + 1);
@@ -105,16 +106,15 @@ partSchema.pre('save', async function(next) {
       }
       
       // Generate and check for uniqueness
-      let partId;
+      let itemId;
       let attempts = 0;
       
       do {
-        partId = `P${String(nextNumber + attempts).padStart(6, '0')}`;
-        const existingPart = await this.constructor.findOne({ part_id: partId });
+        itemId = `RI${String(nextNumber + attempts).padStart(6, '0')}`;
+        const existingItem = await this.constructor.findOne({ item_id: itemId });
         
-        if (!existingPart) {
-          this.part_id = partId;
-          console.log('Generated part ID:', this.part_id);
+        if (!existingItem) {
+          this.item_id = itemId;
           break;
         }
         
@@ -122,14 +122,13 @@ partSchema.pre('save', async function(next) {
       } while (attempts < 100);
       
       // Fallback if all attempts failed
-      if (!this.part_id) {
-        this.part_id = `P${Date.now().toString().slice(-6)}`;
-        console.log('Generated fallback part ID:', this.part_id);
+      if (!this.item_id) {
+        this.item_id = `RI${Date.now().toString().slice(-6)}`;
       }
       
     } catch (error) {
-      console.error('Error generating part ID:', error);
-      this.part_id = `P${Date.now().toString().slice(-6)}`;
+      console.error('Error generating raw item ID:', error);
+      this.item_id = `RI${Date.now().toString().slice(-6)}`;
     }
   }
   
@@ -137,19 +136,19 @@ partSchema.pre('save', async function(next) {
 });
 
 // Virtual for stock status
-partSchema.virtual('stockStatus').get(function() {
+rawItemSchema.virtual('stockStatus').get(function() {
   if (this.quantity_in_stock <= 0) return 'out_of_stock';
   if (this.quantity_in_stock <= this.min_stock_level) return 'low_stock';
   return 'normal';
 });
 
 // Virtual for stock value
-partSchema.virtual('stockValue').get(function() {
+rawItemSchema.virtual('stockValue').get(function() {
   return this.quantity_in_stock * this.cost_per_unit;
 });
 
 // Virtual for days since last restock
-partSchema.virtual('daysSinceRestock').get(function() {
+rawItemSchema.virtual('daysSinceRestock').get(function() {
   if (!this.last_restocked) return null;
   const now = new Date();
   const diffTime = Math.abs(now - this.last_restocked);
@@ -157,23 +156,22 @@ partSchema.virtual('daysSinceRestock').get(function() {
 });
 
 // Indexes for better query performance
-partSchema.index({ part_id: 1 });
-partSchema.index({ name: 1 });
-partSchema.index({ type: 1 });
-partSchema.index({ quantity_in_stock: 1 });
-partSchema.index({ is_active: 1 });
-partSchema.index({ category: 1 });
+rawItemSchema.index({ item_id: 1 });
+rawItemSchema.index({ name: 1 });
+rawItemSchema.index({ material_type: 1 });
+rawItemSchema.index({ quantity_in_stock: 1 });
+rawItemSchema.index({ is_active: 1 });
 
 // Compound index for low stock queries
-partSchema.index({ quantity_in_stock: 1, min_stock_level: 1 });
+rawItemSchema.index({ quantity_in_stock: 1, min_stock_level: 1 });
 
 // Instance method to check if stock is low
-partSchema.methods.isLowStock = function() {
+rawItemSchema.methods.isLowStock = function() {
   return this.quantity_in_stock <= this.min_stock_level;
 };
 
 // Instance method to update stock (for atomic operations)
-partSchema.methods.updateStock = function(quantity, type = 'adjustment') {
+rawItemSchema.methods.updateStock = function(quantity, type = 'adjustment') {
   if (type === 'in' || type === 'IN') {
     this.quantity_in_stock += quantity;
     this.last_restocked = new Date();
@@ -186,4 +184,4 @@ partSchema.methods.updateStock = function(quantity, type = 'adjustment') {
   return this.save();
 };
 
-module.exports = mongoose.model('Part', partSchema);
+module.exports = mongoose.model('RawItem', rawItemSchema);
