@@ -130,21 +130,21 @@ const RawItemsModal = ({ isOpen, onClose, rawItem = null, onSave, onDelete }) =>
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
                 {rawItem ? (viewMode ? 'Raw Item Details' : 'Edit Raw Item') : 'Add New Raw Item'}
               </h2>
               {rawItem && (
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-gray-600 mt-1 truncate">
                   Item Code: {formData.item_id} | Created: {new Date(rawItem.createdAt).toLocaleDateString()}
                 </p>
               )}
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center justify-end space-x-2 flex-shrink-0">
               {rawItem && (
                 <button
                   onClick={() => setViewMode(!viewMode)}
@@ -155,7 +155,7 @@ const RawItemsModal = ({ isOpen, onClose, rawItem = null, onSave, onDelete }) =>
               )}
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 text-2xl"
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
               >
                 ×
               </button>
@@ -163,8 +163,8 @@ const RawItemsModal = ({ isOpen, onClose, rawItem = null, onSave, onDelete }) =>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             {/* Item Code (Read-only for existing items) */}
             {rawItem && (
               <div>
@@ -373,10 +373,10 @@ const RawItemsModal = ({ isOpen, onClose, rawItem = null, onSave, onDelete }) =>
 
           {/* Status Display */}
           <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <span className="text-sm font-medium text-gray-700">Stock Status:</span>
-                <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="col-span-1">
+                <div className="text-sm font-medium text-gray-700 mb-1">Stock Status:</div>
+                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                   formData.quantity_in_stock === 0 ? 'bg-red-100 text-red-800' :
                   formData.quantity_in_stock <= formData.min_stock_level ? 'bg-yellow-100 text-yellow-800' :
                   'bg-green-100 text-green-800'
@@ -385,40 +385,46 @@ const RawItemsModal = ({ isOpen, onClose, rawItem = null, onSave, onDelete }) =>
                    formData.quantity_in_stock <= formData.min_stock_level ? 'Low Stock' : 'In Stock'}
                 </span>
               </div>
-              <div>
-                <span className="text-sm text-gray-600">
-                  <span className="font-medium">Total Value:</span> ${(formData.quantity_in_stock * formData.cost_per_unit).toFixed(2)}
-                </span>
+              <div className="col-span-1">
+                <div className="text-sm text-gray-600">
+                  <span className="font-medium">Total Value:</span>
+                </div>
+                <div className="text-sm text-gray-900 font-semibold">
+                  ${(formData.quantity_in_stock * formData.cost_per_unit).toFixed(2)}
+                </div>
               </div>
               {rawItem && (
-                <div>
-                  <span className="text-sm text-gray-600">
-                    <span className="font-medium">Last Updated:</span> {new Date(rawItem.updatedAt).toLocaleDateString()}
-                  </span>
+                <div className="col-span-1 sm:col-span-2 lg:col-span-1">
+                  <div className="text-sm text-gray-600">
+                    <span className="font-medium">Last Updated:</span>
+                  </div>
+                  <div className="text-sm text-gray-900">
+                    {new Date(rawItem.updatedAt).toLocaleDateString()}
+                  </div>
                 </div>
               )}
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-            <div className="flex space-x-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 pt-4 border-t border-gray-200">
+            <div className="flex justify-center sm:justify-start">
               {rawItem && !viewMode && onDelete && (
                 <button
                   type="button"
                   onClick={handleDelete}
                   disabled={loading}
-                  className="px-4 py-2 text-red-600 border border-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                  className="px-4 py-2 text-red-600 border border-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 text-sm sm:text-base"
                 >
                   {loading ? 'Deleting...' : 'Delete Item'}
                 </button>
               )}
             </div>
-            <div className="flex space-x-3">
+            <div className="flex flex-col sm:flex-row gap-3 sm:space-x-3 sm:gap-0">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm sm:text-base order-2 sm:order-1"
               >
                 {viewMode ? 'Close' : 'Cancel'}
               </button>
@@ -426,7 +432,7 @@ const RawItemsModal = ({ isOpen, onClose, rawItem = null, onSave, onDelete }) =>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm sm:text-base order-1 sm:order-2"
                 >
                   {loading ? 'Saving...' : (rawItem ? 'Update Item' : 'Create Item')}
                 </button>

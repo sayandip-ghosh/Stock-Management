@@ -266,51 +266,57 @@ const RawItems = () => {
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6 w-full min-w-0">
         {/* Page Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">Raw Items Dashboard</h1>
-          <div className="flex items-center space-x-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Raw Items Dashboard</h1>
+          
+          {/* Action Buttons - Responsive Layout */}
+          <div className="flex flex-wrap items-center gap-2 overflow-x-auto">
             <button
               onClick={handleCreatePurchaseOrder}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+              className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-1 text-sm whitespace-nowrap flex-shrink-0"
             >
               <span>📋</span>
-              <span>Create Purchase Order</span>
+              <span className="hidden sm:inline">Create Purchase Order</span>
+              <span className="sm:hidden">Purchase</span>
             </button>
             <button
               onClick={handleCreateParts}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-2"
+              className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-1 text-sm whitespace-nowrap flex-shrink-0"
             >
               <span>⚙️</span>
-              <span>Create Parts</span>
+              <span className="hidden sm:inline">Create Parts</span>
+              <span className="sm:hidden">Parts</span>
             </button>
             <button
               onClick={handleAddScrapFromOperation}
-              className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 flex items-center space-x-2"
+              className="bg-orange-600 text-white px-3 py-2 rounded-lg hover:bg-orange-700 flex items-center space-x-1 text-sm whitespace-nowrap flex-shrink-0"
             >
               <span>♻️</span>
-              <span>Add Scrap</span>
+              <span className="hidden sm:inline">Add Scrap</span>
+              <span className="sm:hidden">Scrap</span>
             </button>
             <button
               onClick={handleAddRawItem}
-              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center space-x-2"
+              className="bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 flex items-center space-x-1 text-sm whitespace-nowrap flex-shrink-0"
             >
               <span>+</span>
-              <span>Add Raw Item</span>
+              <span className="hidden sm:inline">Add Raw Item</span>
+              <span className="sm:hidden">Add Item</span>
             </button>
           </div>
         </div>
 
         {/* Search and Filter */}
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           <div className="relative flex-1">
             <input
               type="text"
-              placeholder="Search by name, material type, or description..."
+              placeholder="Search by name, material type..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             />
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <span className="text-gray-400">🔍</span>
@@ -319,7 +325,7 @@ const RawItems = () => {
           <select
             value={materialFilter}
             onChange={(e) => setMaterialFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 min-w-0 sm:min-w-[160px]"
           >
             <option value="">All Materials</option>
             {materialTypes.map(type => (
@@ -330,104 +336,110 @@ const RawItems = () => {
 
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
             <div className="flex items-center">
               <div className="p-2 bg-blue-100 rounded-lg">
-                <span className="text-blue-600 text-xl">🏭</span>
+                <span className="text-blue-600 text-lg sm:text-xl">🏭</span>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Raw Items</p>
-                <p className="text-2xl font-bold text-gray-900">{rawItems.length || 0}</p>
+              <div className="ml-3 sm:ml-4">
+                <p className="text-xs sm:text-sm font-medium text-gray-600">Total Raw Items</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{rawItems.length || 0}</p>
               </div>
             </div>
           </div>
           
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
             <div className="flex items-center">
               <div className="p-2 bg-green-100 rounded-lg">
-                <span className="text-green-600 text-xl">✅</span>
+                <span className="text-green-600 text-lg sm:text-xl">✅</span>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">In Stock</p>
-                <p className="text-2xl font-bold text-gray-900">{inStockCount}</p>
+              <div className="ml-3 sm:ml-4">
+                <p className="text-xs sm:text-sm font-medium text-gray-600">In Stock</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{inStockCount}</p>
               </div>
             </div>
           </div>
           
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
             <div className="flex items-center">
               <div className="p-2 bg-yellow-100 rounded-lg">
-                <span className="text-yellow-600 text-xl">⚠️</span>
+                <span className="text-yellow-600 text-lg sm:text-xl">⚠️</span>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Low Stock</p>
-                <p className="text-2xl font-bold text-gray-900">{lowStockCount}</p>
+              <div className="ml-3 sm:ml-4">
+                <p className="text-xs sm:text-sm font-medium text-gray-600">Low Stock</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{lowStockCount}</p>
               </div>
             </div>
           </div>
           
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
             <div className="flex items-center">
               <div className="p-2 bg-red-100 rounded-lg">
-                <span className="text-red-600 text-xl">❌</span>
+                <span className="text-red-600 text-lg sm:text-xl">❌</span>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Out of Stock</p>
-                <p className="text-2xl font-bold text-gray-900">{outOfStockCount}</p>
+              <div className="ml-3 sm:ml-4">
+                <p className="text-xs sm:text-sm font-medium text-gray-600">Out of Stock</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{outOfStockCount}</p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Purchase Orders Section */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Recent Raw Item Purchase Orders</h2>
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+              <h2 className="text-lg font-semibold text-gray-900">Recent Purchase Orders</h2>
               <button
                 onClick={handleCreatePurchaseOrder}
-                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                className="text-blue-600 hover:text-blue-800 text-sm font-medium self-start sm:self-auto"
               >
                 View All Orders
               </button>
             </div>
           </div>
           
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {purchaseOrders.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
+              <div className="overflow-x-auto min-w-0">
+                <table className="w-full divide-y divide-gray-200" style={{minWidth: '600px'}}>
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order #</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order #</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Order Date</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Total Amount</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {purchaseOrders.slice(0, 5).map((order) => (
                       <tr key={order._id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {order.order_number}
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{order.order_number}</div>
+                          <div className="text-xs text-gray-500 sm:hidden">
+                            {new Date(order.order_date).toLocaleDateString()}
+                          </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {order.supplier_name}
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{order.supplier_name}</div>
+                          <div className="text-xs text-gray-500 md:hidden">
+                            ${order.total_amount.toFixed(2)}
+                          </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden sm:table-cell">
                           {new Date(order.order_date).toLocaleDateString()}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {order.items.length} item(s)
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden md:table-cell">
                           ${order.total_amount.toFixed(2)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                             order.status === 'completed' ? 'bg-green-100 text-green-800' :
                             order.status === 'partial' ? 'bg-yellow-100 text-yellow-800' :
@@ -437,7 +449,7 @@ const RawItems = () => {
                             {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <button
                             onClick={() => handleEditPurchaseOrder(order)}
                             className="text-blue-600 hover:text-blue-900"
@@ -453,11 +465,11 @@ const RawItems = () => {
             ) : (
               <div className="text-center py-8 text-gray-500">
                 <div className="text-4xl mb-4">📋</div>
-                <p className="text-lg font-medium mb-2">No purchase orders yet</p>
-                <p className="text-sm mb-4">Create your first raw item purchase order to get started</p>
+                <p className="text-base sm:text-lg font-medium mb-2">No purchase orders yet</p>
+                <p className="text-sm mb-4 px-4">Create your first raw item purchase order to get started</p>
                 <button
                   onClick={handleCreatePurchaseOrder}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm sm:text-base"
                 >
                   Create Purchase Order
                 </button>
@@ -467,11 +479,11 @@ const RawItems = () => {
         </div>
 
         {/* Scrap Items Section */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <div className="flex items-center justify-between">
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
               <h2 className="text-lg font-semibold text-gray-900">Scrap Items</h2>
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={handleAddScrapItem}
                   className="text-orange-600 hover:text-orange-800 text-sm font-medium"
@@ -488,25 +500,25 @@ const RawItems = () => {
             </div>
           </div>
           
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {scrapItems.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
+              <div className="overflow-x-auto min-w-0">
+                <table className="w-full divide-y divide-gray-200" style={{minWidth: '700px'}}>
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source Raw Item</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source Operation</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Part Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Source Raw Item</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Operation</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Part Name</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Date</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {scrapItems.slice(0, 5).map((scrap) => (
                       <tr key={scrap._id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center mr-3">
                               <span className="text-orange-600 text-xs">♻️</span>
@@ -514,26 +526,32 @@ const RawItems = () => {
                             <div>
                               <div className="text-sm text-gray-900">{scrap.name}</div>
                               <div className="text-xs text-gray-500">{scrap.item_id}</div>
+                              <div className="text-xs text-gray-500 lg:hidden">
+                                {scrap.raw_item_id?.name || 'N/A'}
+                              </div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden lg:table-cell">
                           {scrap.raw_item_id?.name || 'N/A'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {scrap.quantity_available} {scrap.unit}
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{scrap.quantity_available} {scrap.unit}</div>
+                          <div className="text-xs text-gray-500 md:hidden">
+                            {scrap.source_operation?.charAt(0).toUpperCase() + scrap.source_operation?.slice(1) || 'N/A'}
+                          </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden md:table-cell">
                           {scrap.source_operation?.charAt(0).toUpperCase() + scrap.source_operation?.slice(1) || 'N/A'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden lg:table-cell">
                           {scrap.source_details?.part_name || 'N/A'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden sm:table-cell">
                           {scrap.source_details?.operation_date ? 
                             new Date(scrap.source_details.operation_date).toLocaleDateString() : 'N/A'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <button
                             onClick={() => handleEditScrapItem(scrap)}
                             className="text-orange-600 hover:text-orange-900"
@@ -549,11 +567,11 @@ const RawItems = () => {
             ) : (
               <div className="text-center py-8 text-gray-500">
                 <div className="text-4xl mb-4">♻️</div>
-                <p className="text-lg font-medium mb-2">No scrap items yet</p>
-                <p className="text-sm mb-4">Add scrap from manufacturing operations to track reusable materials</p>
+                <p className="text-base sm:text-lg font-medium mb-2">No scrap items yet</p>
+                <p className="text-sm mb-4 px-4">Add scrap from manufacturing operations to track reusable materials</p>
                 <button
                   onClick={handleAddScrapFromOperation}
-                  className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700"
+                  className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 text-sm sm:text-base"
                 >
                   Add Scrap
                 </button>
@@ -563,26 +581,26 @@ const RawItems = () => {
         </div>
 
         {/* Raw Items Table */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">Raw Items Overview</h2>
             </div>
           </div>
           
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+          <div className="overflow-x-auto min-w-0">
+            <table className="w-full divide-y divide-gray-200" style={{minWidth: '600px'}}>
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sn</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Material Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock Quantity</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Min Stock</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">Sn</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">Item Name</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Material</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Description</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Min</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Price</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -606,31 +624,52 @@ const RawItems = () => {
 
                     return (
                       <tr key={item._id || index} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{String(index + 1).padStart(2, '0')}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center mr-3">
+                        <td className="px-3 sm:px-4 py-4 text-sm text-gray-900 font-medium">
+                          {String(index + 1).padStart(2, '0')}
+                        </td>
+                        <td className="px-3 sm:px-4 py-4">
+                          <div className="flex items-center min-w-0">
+                            <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
                               <span className="text-gray-600 text-xs">🏭</span>
                             </div>
-                            <div>
-                              <div className="text-sm text-gray-900">{item.name || 'Unnamed Item'}</div>
-                              <div className="text-xs text-gray-500">{item.item_id || 'N/A'}</div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm text-gray-900 truncate">{item.name || 'Unnamed Item'}</div>
+                              <div className="text-xs text-gray-500 truncate">{item.item_id || 'N/A'}</div>
+                              <div className="text-xs text-gray-500 md:hidden">
+                                {item.material_type || 'N/A'}
+                              </div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.material_type || 'N/A'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.description || 'N/A'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {quantity} {item.unit || 'kg'}
+                        <td className="px-3 sm:px-4 py-4 text-sm text-gray-900 hidden md:table-cell">
+                          <div className="truncate">{item.material_type || 'N/A'}</div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{minLevel}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.cost_per_unit || 0}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 sm:px-4 py-4 text-sm text-gray-900 hidden lg:table-cell">
+                          <div className="max-w-[150px] truncate">{item.description || 'N/A'}</div>
+                        </td>
+                        <td className="px-3 sm:px-4 py-4">
+                          <div className="text-sm text-gray-900 font-medium">
+                            {quantity} {item.unit || 'kg'}
+                          </div>
+                          <div className="text-xs text-gray-500 sm:hidden">
+                            Min: {minLevel}
+                          </div>
+                        </td>
+                        <td className="px-3 sm:px-4 py-4 text-sm text-gray-900 hidden sm:table-cell">
+                          {minLevel}
+                        </td>
+                        <td className="px-3 sm:px-4 py-4 text-sm text-gray-900 hidden lg:table-cell">
+                          ${item.cost_per_unit || 0}
+                        </td>
+                        <td className="px-3 sm:px-4 py-4">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusClass}`}>
-                            {statusText}
+                            <span className="hidden sm:inline">{statusText}</span>
+                            <span className="sm:hidden">
+                              {quantity === 0 ? 'Out' : quantity <= minLevel ? 'Low' : 'OK'}
+                            </span>
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <td className="px-3 sm:px-4 py-4 text-sm font-medium">
                           <button
                             onClick={() => handleEditRawItem(item)}
                             className="text-purple-600 hover:text-purple-900"
@@ -643,10 +682,10 @@ const RawItems = () => {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="9" className="px-6 py-4 text-center">
+                    <td colSpan="9" className="px-3 sm:px-4 py-4 text-center">
                       <div className="py-8">
                         <div className="text-gray-400 text-4xl mb-4">🏭</div>
-                        <div className="text-gray-500 text-lg font-medium mb-2">
+                        <div className="text-gray-500 text-base sm:text-lg font-medium mb-2">
                           {searchTerm || materialFilter ? 'No raw items found matching your criteria.' : 'No raw items available right now.'}
                         </div>
                         <div className="text-gray-400 text-sm">
@@ -661,15 +700,21 @@ const RawItems = () => {
           </div>
           
           {/* Pagination */}
-          <div className="px-6 py-3 border-t border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-700">
+          <div className="px-4 sm:px-6 py-3 border-t border-gray-200">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+              <div className="text-sm text-gray-700 text-center sm:text-left">
                 Showing {filteredRawItems.length} of {rawItems.length} results
               </div>
-              <div className="flex items-center space-x-2">
-                <button className="px-3 py-1 text-sm text-gray-500 hover:text-gray-700">Previous</button>
-                <button className="px-3 py-1 text-sm bg-purple-600 text-white rounded">01</button>
-                <button className="px-3 py-1 text-sm text-gray-500 hover:text-gray-700">Next</button>
+              <div className="flex items-center justify-center sm:justify-end space-x-2">
+                <button className="px-3 py-1 text-sm text-gray-500 hover:text-gray-700 border border-gray-300 rounded">
+                  Previous
+                </button>
+                <button className="px-3 py-1 text-sm bg-purple-600 text-white rounded border border-purple-600">
+                  01
+                </button>
+                <button className="px-3 py-1 text-sm text-gray-500 hover:text-gray-700 border border-gray-300 rounded">
+                  Next
+                </button>
               </div>
             </div>
           </div>

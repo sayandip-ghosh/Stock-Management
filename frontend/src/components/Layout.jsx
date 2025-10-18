@@ -13,7 +13,7 @@ const Layout = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex">
+    <div className="min-h-screen bg-gray-100 flex max-w-full overflow-hidden">
       {/* Desktop Sidebar - Fixed */}
       <div className="hidden lg:flex lg:flex-shrink-0">
         <SideNav />
@@ -30,7 +30,7 @@ const Layout = ({ children }) => {
       )}
 
       {/* Main content */}
-      <div className="flex flex-col flex-1 lg:flex-1">
+      <div className="flex flex-col flex-1 lg:flex-1 min-w-0 overflow-hidden">
         {/* Top navigation */}
         <nav className="bg-white shadow-sm border-b border-gray-200">
           <div className="px-4 sm:px-6 lg:px-8">
@@ -87,8 +87,8 @@ const Layout = ({ children }) => {
         </nav>
 
         {/* Main content area */}
-        <main className="flex-1 py-6">
-          <div className="px-4 sm:px-6 lg:px-8">
+        <main className="flex-1 py-6 min-w-0 overflow-hidden">
+          <div className="px-4 sm:px-6 lg:px-8 max-w-full">
             {children}
           </div>
         </main>
