@@ -720,7 +720,7 @@ export const generatePurchaseOrderDocument = async (purchaseOrderData) => {
                                 new TextRun({
                                   text:
                                     item.description ||
-                                    `${item.part_name || "Unknown Part"}`,
+                                    `${item.part_name || item.raw_item_name || "Unknown Item"}`,
                                   size: 20,
                                 }),
                               ],
