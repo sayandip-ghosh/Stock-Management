@@ -5,6 +5,7 @@ import CreatePartsModal from '../components/CreatePartsModal';
 import RawItemPurchaseOrderModal from '../components/RawItemPurchaseOrderModal';
 import ScrapItemsModal from '../components/ScrapItemsModal';
 import AddScrapModal from '../components/AddScrapModal';
+import RawItemReceiveModal from '../components/RawItemReceiveModal';
 
 import { rawItemsAPI, partsAPI, rawItemPurchaseOrdersAPI, scrapItemsAPI } from '../services/api';
 
@@ -24,11 +25,15 @@ const RawItems = () => {
   const [isScrapModalOpen, setIsScrapModalOpen] = useState(false);
   const [isAddScrapModalOpen, setIsAddScrapModalOpen] = useState(false);
   const [selectedScrapItem, setSelectedScrapItem] = useState(null);
+  const [isReceiveItemsModalOpen, setIsReceiveItemsModalOpen] = useState(false);
+  const [pendingOrders, setPendingOrders] = useState([]);
+  const [isViewAllPendingOrdersModalOpen, setIsViewAllPendingOrdersModalOpen] = useState(false);
 
   useEffect(() => {
     fetchRawItems();
     fetchPurchaseOrders();
     fetchScrapItems();
+    fetchPendingOrders();
   }, []);
 
   const fetchRawItems = async () => {
@@ -93,6 +98,15 @@ const RawItems = () => {
     }
   };
 
+  const fetchPendingOrders = async () => {
+    try {
+      const response = await rawItemPurchaseOrdersAPI.getPending();
+      setPendingOrders(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching pending orders:', error);
+    }
+  };
+
   const handleCreateParts = () => {
     setIsCreatePartsModalOpen(true);
   };
@@ -115,8 +129,44 @@ const RawItems = () => {
         await rawItemPurchaseOrdersAPI.create(purchaseOrderData);
       }
       await fetchPurchaseOrders();
+      await fetchPendingOrders();
     } catch (error) {
       console.error('Error saving purchase order:', error);
+      throw error;
+    }
+  };
+
+  const handleReceiveItems = async (receiptData) => {
+    try {
+      console.log('Receiving raw items with data:', receiptData);
+      
+      // Extract purchase order ID from the receipt data
+      const purchaseOrderId = receiptData.purchase_order_id;
+      
+      // Prepare the data for the API call (without purchase_order_id in the body)
+      const apiData = {
+        received_date: receiptData.received_date,
+        items: receiptData.items,
+        notes: receiptData.notes,
+        receiver_name: receiptData.receiver_name || 'system',
+        carrier_info: receiptData.carrier_info || ''
+      };
+      
+      await rawItemPurchaseOrdersAPI.receiveItems(purchaseOrderId, apiData);
+      
+      console.log('Successfully received raw items');
+      
+      // Refresh data
+      await fetchPurchaseOrders();
+      await fetchPendingOrders();
+      await fetchRawItems();
+      
+      // Close modal
+      setIsReceiveItemsModalOpen(false);
+      setSelectedPurchaseOrder(null);
+      
+    } catch (error) {
+      console.error('Error receiving raw items:', error);
       throw error;
     }
   };
@@ -386,97 +436,72 @@ const RawItems = () => {
           </div>
         </div>
 
-        {/* Purchase Orders Section */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
-              <h2 className="text-lg font-semibold text-gray-900">Recent Purchase Orders</h2>
-              <button
-                onClick={handleCreatePurchaseOrder}
-                className="text-blue-600 hover:text-blue-800 text-sm font-medium self-start sm:self-auto"
-              >
-                View All Orders
-              </button>
+        {/* Pending & Partial Purchase Orders Section */}
+        {pendingOrders.length > 0 && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-medium text-yellow-800">Pending & Partial Raw Item Purchase Orders</h3>
+              <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-sm font-medium">
+                {pendingOrders.length} orders
+              </span>
             </div>
-          </div>
-          
-          <div className="p-4 sm:p-6">
-            {purchaseOrders.length > 0 ? (
-              <div className="overflow-x-auto min-w-0">
-                <table className="w-full divide-y divide-gray-200" style={{minWidth: '600px'}}>
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order #</th>
-                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
-                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Order Date</th>
-                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
-                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Total Amount</th>
-                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {purchaseOrders.slice(0, 5).map((order) => (
-                      <tr key={order._id} className="hover:bg-gray-50">
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{order.order_number}</div>
-                          <div className="text-xs text-gray-500 sm:hidden">
-                            {new Date(order.order_date).toLocaleDateString()}
-                          </div>
-                        </td>
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{order.supplier_name}</div>
-                          <div className="text-xs text-gray-500 md:hidden">
-                            ${order.total_amount.toFixed(2)}
-                          </div>
-                        </td>
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden sm:table-cell">
-                          {new Date(order.order_date).toLocaleDateString()}
-                        </td>
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {order.items.length} item(s)
-                        </td>
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden md:table-cell">
-                          ${order.total_amount.toFixed(2)}
-                        </td>
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            order.status === 'completed' ? 'bg-green-100 text-green-800' :
-                            order.status === 'partial' ? 'bg-yellow-100 text-yellow-800' :
-                            order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                            'bg-blue-100 text-blue-800'
-                          }`}>
-                            {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                          </span>
-                        </td>
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => handleEditPurchaseOrder(order)}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            View
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <div className="text-4xl mb-4">📋</div>
-                <p className="text-base sm:text-lg font-medium mb-2">No purchase orders yet</p>
-                <p className="text-sm mb-4 px-4">Create your first raw item purchase order to get started</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {pendingOrders.slice(0, 3).map(order => (
+                <div key={order._id} className="bg-white border border-yellow-200 rounded-lg p-3">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-medium text-gray-900 truncate">
+                        {order.order_number}
+                      </h4>
+                      <p className="text-xs text-gray-600 truncate">
+                        {order.supplier_name}
+                      </p>
+                    </div>
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      order.status === 'pending' ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800'
+                    }`}>
+                      {order.status === 'partial' ? `${order.completion_percentage || 0}%` : 'Pending'}
+                    </span>
+                  </div>
+                  
+                  <div className="text-xs text-gray-500 mb-2">
+                    {order.items.length} item(s) • ${order.total_amount?.toFixed(2) || '0.00'}
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-gray-500">
+                      {new Date(order.order_date).toLocaleDateString()}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedPurchaseOrder(order);
+                        setIsReceiveItemsModalOpen(true);
+                      }}
+                      className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 flex items-center space-x-1"
+                    >
+                      <span>📦</span>
+                      <span>Receive</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {pendingOrders.length > 3 && (
+              <div className="flex items-center justify-between mt-3">
+                <p className="text-sm text-yellow-700">
+                  And {pendingOrders.length - 3} more orders awaiting delivery...
+                </p>
                 <button
-                  onClick={handleCreatePurchaseOrder}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm sm:text-base"
+                  onClick={() => setIsViewAllPendingOrdersModalOpen(true)}
+                  className="bg-yellow-600 text-white px-3 py-1.5 rounded text-sm hover:bg-yellow-700 flex items-center space-x-1"
                 >
-                  Create Purchase Order
+                  <span>👁️</span>
+                  <span>View All Orders</span>
                 </button>
               </div>
             )}
           </div>
-        </div>
+        )}
 
         {/* Scrap Items Section */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -762,7 +787,197 @@ const RawItems = () => {
         onSuccess={handleScrapAdded}
       />
 
+      {/* Receive Items Modal */}
+      <RawItemReceiveModal
+        isOpen={isReceiveItemsModalOpen}
+        onClose={() => {
+          setIsReceiveItemsModalOpen(false);
+          setSelectedPurchaseOrder(null);
+        }}
+        purchaseOrder={selectedPurchaseOrder}
+        onReceive={handleReceiveItems}
+      />
+
+      {/* View All Pending Orders Modal */}
+      {isViewAllPendingOrdersModalOpen && (
+        <ViewAllPendingOrdersModal
+          isOpen={isViewAllPendingOrdersModalOpen}
+          onClose={() => setIsViewAllPendingOrdersModalOpen(false)}
+          orders={pendingOrders}
+          onReceiveItems={(order) => {
+            setSelectedPurchaseOrder(order);
+            setIsReceiveItemsModalOpen(true);
+            setIsViewAllPendingOrdersModalOpen(false);
+          }}
+          onViewOrder={(order) => {
+            setSelectedPurchaseOrder(order);
+            setIsPurchaseOrderModalOpen(true);
+            setIsViewAllPendingOrdersModalOpen(false);
+          }}
+        />
+      )}
+
     </Layout>
+  );
+};
+
+// View All Pending Orders Modal Component
+const ViewAllPendingOrdersModal = ({ isOpen, onClose, orders, onReceiveItems, onViewOrder }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('order_date');
+
+  if (!isOpen) return null;
+
+  const filteredOrders = orders.filter(order => {
+    const matchesSearch = order.order_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         order.supplier_name?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const sortedOrders = [...filteredOrders].sort((a, b) => {
+    if (sortBy === 'order_date') {
+      return new Date(b.order_date) - new Date(a.order_date);
+    } else if (sortBy === 'completion_percentage') {
+      return (b.completion_percentage || 0) - (a.completion_percentage || 0);
+    } else if (sortBy === 'total_amount') {
+      return (b.total_amount || 0) - (a.total_amount || 0);
+    }
+    return 0;
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900">All Pending & Partial Raw Item Orders</h2>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6">
+          {/* Filters */}
+          <div className="flex flex-col md:flex-row gap-4 mb-6">
+            <div className="flex-1">
+              <input
+                type="text"
+                placeholder="Search by order number or supplier..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="partial">Partial</option>
+            </select>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="order_date">Sort by Date</option>
+              <option value="completion_percentage">Sort by Progress</option>
+              <option value="total_amount">Sort by Amount</option>
+            </select>
+          </div>
+
+          {/* Orders Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {sortedOrders.map(order => (
+              <div key={order._id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-medium text-gray-900 truncate">
+                      {order.order_number}
+                    </h3>
+                    <p className="text-xs text-gray-600 truncate">
+                      {order.supplier_name}
+                    </p>
+                  </div>
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    order.status === 'pending' ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800'
+                  }`}>
+                    {order.status === 'partial' ? `${order.completion_percentage || 0}%` : 'Pending'}
+                  </span>
+                </div>
+
+                <div className="space-y-2 mb-4">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Items:</span>
+                    <span className="text-gray-900">{order.items.length}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Total:</span>
+                    <span className="text-gray-900">${order.total_amount?.toFixed(2) || '0.00'}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Date:</span>
+                    <span className="text-gray-900">{new Date(order.order_date).toLocaleDateString()}</span>
+                  </div>
+                </div>
+
+                {order.status === 'partial' && (
+                  <div className="mb-4">
+                    <div className="flex justify-between text-xs text-gray-600 mb-1">
+                      <span>Progress</span>
+                      <span>{order.completion_percentage || 0}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-orange-600 h-2 rounded-full transition-all duration-300" 
+                        style={{ width: `${order.completion_percentage || 0}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => onReceiveItems(order)}
+                    className="flex-1 bg-green-600 text-white px-3 py-2 rounded text-xs hover:bg-green-700 flex items-center justify-center space-x-1"
+                  >
+                    <span>📦</span>
+                    <span>Receive</span>
+                  </button>
+                  <button
+                    onClick={() => onViewOrder(order)}
+                    className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-xs hover:bg-blue-700 flex items-center justify-center space-x-1"
+                  >
+                    <span>👁️</span>
+                    <span>View</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {sortedOrders.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              <div className="text-4xl mb-4">📋</div>
+              <p className="text-lg font-medium mb-2">No pending orders found</p>
+              <p className="text-sm">
+                {searchTerm || statusFilter !== 'all' 
+                  ? 'Try adjusting your search or filter criteria.' 
+                  : 'All orders have been completed or there are no orders yet.'}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
 

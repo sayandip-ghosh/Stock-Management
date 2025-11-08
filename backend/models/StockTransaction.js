@@ -13,7 +13,15 @@ const stockTransactionSchema = new mongoose.Schema({
     ref: 'Part',
     required: function() {
       // part_reference is only required for part-related transactions
-      return ['DELIVERY', 'WITHDRAWAL', 'ADJUSTMENT', 'ASSEMBLY_BUILD', 'ASSEMBLY_DISASSEMBLE'].includes(this.transaction_type);
+      return ['DELIVERY', 'WITHDRAWAL', 'ADJUSTMENT', 'ASSEMBLY_BUILD', 'ASSEMBLY_DISASSEMBLE'].includes(this.transaction_type) && !this.raw_item_reference;
+    }
+  },
+  raw_item_reference: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'RawItem',
+    required: function() {
+      // raw_item_reference is required for raw item transactions
+      return this.transaction_type === 'DELIVERY' && !this.part_reference;
     }
   },
   assembly_reference: {
@@ -57,7 +65,7 @@ const stockTransactionSchema = new mongoose.Schema({
   },
   reference_type: {
     type: String,
-    enum: ['INVOICE', 'ASSEMBLY_ID', 'PURCHASE_ORDER', 'SALES_ORDER', 'ADJUSTMENT', 'OTHER'],
+    enum: ['INVOICE', 'ASSEMBLY_ID', 'PURCHASE_ORDER', 'RAW_ITEM_PURCHASE_ORDER', 'SALES_ORDER', 'ADJUSTMENT', 'OTHER'],
     default: 'OTHER'
   },
   purchase_order_reference: {
@@ -94,6 +102,7 @@ const stockTransactionSchema = new mongoose.Schema({
 // Indexes for better query performance
 stockTransactionSchema.index({ transaction_id: 1 });
 stockTransactionSchema.index({ part_reference: 1 });
+stockTransactionSchema.index({ raw_item_reference: 1 });
 stockTransactionSchema.index({ transaction_type: 1 });
 stockTransactionSchema.index({ date: -1 });
 stockTransactionSchema.index({ reference: 1 });
@@ -102,6 +111,7 @@ stockTransactionSchema.index({ purchase_order_reference: 1 });
 
 // Compound indexes for common queries
 stockTransactionSchema.index({ part_reference: 1, date: -1 });
+stockTransactionSchema.index({ raw_item_reference: 1, date: -1 });
 stockTransactionSchema.index({ transaction_type: 1, date: -1 });
 
 // Pre-save middleware to generate transaction_id if not provided
@@ -199,6 +209,7 @@ stockTransactionSchema.statics.getRecentTransactions = async function(limit = 10
     .sort({ date: -1 })
     .limit(limit)
     .populate('part_reference', 'part_id name')
+    .populate('raw_item_reference', 'item_id name material_type')
     .populate('assembly_reference', 'assembly_id name');
 };
 
