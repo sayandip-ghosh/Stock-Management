@@ -74,7 +74,32 @@ const rawItemSchema = new mongoose.Schema({
   created_by_migration: {
     type: Boolean,
     default: false
-  }
+  },
+  // Parts that can be made from this raw item
+  manufacturable_parts: [{
+    part_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Part'
+    },
+    part_name: {
+      type: String,
+      required: true
+    },
+    part_type: {
+      type: String,
+      required: true
+    },
+    weight_per_unit: {
+      type: Number,
+      required: true,
+      min: 0,
+      comment: 'Weight in kg required to make one unit of this part'
+    },
+    notes: {
+      type: String,
+      maxlength: 200
+    }
+  }]
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

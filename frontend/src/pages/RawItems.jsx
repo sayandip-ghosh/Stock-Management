@@ -323,14 +323,7 @@ const RawItems = () => {
           
           {/* Action Buttons - Responsive Layout */}
           <div className="flex flex-wrap items-center gap-2 overflow-x-auto">
-            <button
-              onClick={handleCreatePurchaseOrder}
-              className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-1 text-sm whitespace-nowrap flex-shrink-0"
-            >
-              <span>📋</span>
-              <span className="hidden sm:inline">Create Purchase Order</span>
-              <span className="sm:hidden">Purchase</span>
-            </button>
+            
             <button
               onClick={handleCreateParts}
               className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-1 text-sm whitespace-nowrap flex-shrink-0"
@@ -339,22 +332,7 @@ const RawItems = () => {
               <span className="hidden sm:inline">Create Parts</span>
               <span className="sm:hidden">Parts</span>
             </button>
-            <button
-              onClick={handleAddScrapFromOperation}
-              className="bg-orange-600 text-white px-3 py-2 rounded-lg hover:bg-orange-700 flex items-center space-x-1 text-sm whitespace-nowrap flex-shrink-0"
-            >
-              <span>♻️</span>
-              <span className="hidden sm:inline">Add Scrap</span>
-              <span className="sm:hidden">Scrap</span>
-            </button>
-            <button
-              onClick={handleAddRawItem}
-              className="bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 flex items-center space-x-1 text-sm whitespace-nowrap flex-shrink-0"
-            >
-              <span>+</span>
-              <span className="hidden sm:inline">Add Raw Item</span>
-              <span className="sm:hidden">Add Item</span>
-            </button>
+            
           </div>
         </div>
 
@@ -610,6 +588,24 @@ const RawItems = () => {
           <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">Raw Items Overview</h2>
+              <div className='flex items-center justify-between gap-2'>
+                <button
+              onClick={handleCreatePurchaseOrder}
+              className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-1 text-sm whitespace-nowrap flex-shrink-0"
+            >
+              <span>📋</span>
+              <span className="hidden sm:inline">Create Purchase Order</span>
+              <span className="sm:hidden">Purchase</span>
+            </button>
+            <button
+              onClick={handleAddRawItem}
+              className="bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 flex items-center space-x-1 text-sm whitespace-nowrap flex-shrink-0"
+            >
+              <span>+</span>
+              <span className="hidden sm:inline">Add Raw Item</span>
+              <span className="sm:hidden">Add Item</span>
+            </button>
+              </div>
             </div>
           </div>
           
@@ -620,7 +616,6 @@ const RawItems = () => {
                   <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">Sn</th>
                   <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">Item Name</th>
                   <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Material</th>
-                  <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Description</th>
                   <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
                   <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Min</th>
                   <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Price</th>
@@ -668,9 +663,6 @@ const RawItems = () => {
                         </td>
                         <td className="px-3 sm:px-4 py-4 text-sm text-gray-900 hidden md:table-cell">
                           <div className="truncate">{item.material_type || 'N/A'}</div>
-                        </td>
-                        <td className="px-3 sm:px-4 py-4 text-sm text-gray-900 hidden lg:table-cell">
-                          <div className="max-w-[150px] truncate">{item.description || 'N/A'}</div>
                         </td>
                         <td className="px-3 sm:px-4 py-4">
                           <div className="text-sm text-gray-900 font-medium">

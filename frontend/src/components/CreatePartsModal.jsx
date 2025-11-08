@@ -70,8 +70,45 @@ const CreatePartsModal = ({ isOpen, onClose, onSave }) => {
       [name]: type === 'number' ? parseFloat(value) || 0 : value
     }));
     
+    // If part selection changes, auto-populate raw items from manufacturables
+    if (name === 'part_id' && value) {
+      autoSelectRawItemsForPart(value);
+    }
+    
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const autoSelectRawItemsForPart = (partId) => {
+    const selectedPart = parts.find(part => part._id === partId);
+    if (!selectedPart) return;
+
+    // Find raw items that can manufacture this part
+    const compatibleRawItems = rawItems.filter(rawItem => 
+      rawItem.manufacturable_parts && 
+      rawItem.manufacturable_parts.some(mp => 
+        mp.part_id === partId || mp.part_name === selectedPart.name
+      )
+    );
+
+    if (compatibleRawItems.length > 0) {
+      // Auto-select the first compatible raw item
+      const autoSelectedItem = compatibleRawItems[0];
+      const manufacturablePart = autoSelectedItem.manufacturable_parts.find(mp => 
+        mp.part_id === partId || mp.part_name === selectedPart.name
+      );
+
+      if (manufacturablePart) {
+        setSelectedRawItems([autoSelectedItem]);
+        setRawItemQuantities({
+          [autoSelectedItem._id]: manufacturablePart.weight_per_unit
+        });
+      }
+    } else {
+      // If no compatible raw items found, clear selection
+      setSelectedRawItems([]);
+      setRawItemQuantities({});
     }
   };
 
@@ -148,6 +185,36 @@ const CreatePartsModal = ({ isOpen, onClose, onSave }) => {
       const totalQuantity = quantityPerPart * partsToMake;
       return total + totalQuantity;
     }, 0);
+  };
+
+  const hasInsufficientStock = () => {
+    const partsToMake = formData.quantity_to_make || 1;
+    return selectedRawItems.some(item => {
+      const quantityPerPart = rawItemQuantities[item._id] || 0;
+      const totalQuantityNeeded = quantityPerPart * partsToMake;
+      return totalQuantityNeeded > (item.quantity_in_stock || 0);
+    });
+  };
+
+  const getStockValidationErrors = () => {
+    const partsToMake = formData.quantity_to_make || 1;
+    const stockErrors = [];
+    
+    selectedRawItems.forEach(item => {
+      const quantityPerPart = rawItemQuantities[item._id] || 0;
+      const totalQuantityNeeded = quantityPerPart * partsToMake;
+      
+      if (totalQuantityNeeded > (item.quantity_in_stock || 0)) {
+        stockErrors.push({
+          item: item.name,
+          needed: totalQuantityNeeded,
+          available: item.quantity_in_stock || 0,
+          unit: item.unit
+        });
+      }
+    });
+    
+    return stockErrors;
   };
 
   const handleSelectRawItem = (rawItem, isSelected) => {
@@ -236,114 +303,28 @@ const CreatePartsModal = ({ isOpen, onClose, onSave }) => {
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Raw Items Selection */}
           <div className="bg-gray-50 p-4 rounded-lg">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Select Raw Items</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Select Raw Items</h3>
+              
+            </div>
+
             
             {/* Search and Add Raw Item */}
-            <div className="relative mb-4 raw-item-dropdown">
-              {/* Dropdown Button */}
-              <button
-                type="button"
-                onClick={() => setShowRawItemDropdown(!showRawItemDropdown)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white text-left flex items-center justify-between"
-              >
-                <span className="text-gray-500">
-                  {selectedRawItems.length > 0 
-                    ? `${selectedRawItems.length} item(s) selected` 
-                    : 'Select raw items...'
-                  }
-                </span>
-                <span className="text-gray-400">
-                  {showRawItemDropdown ? '▲' : '▼'}
-                </span>
-              </button>
-              
-              {/* Dropdown Panel */}
-              {showRawItemDropdown && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg">
-                  {/* Search Bar inside Dropdown */}
-                  <div className="p-3 border-b border-gray-200">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder="Search raw items..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full px-3 py-2 pl-8 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-                      />
-                      <div className="absolute inset-y-0 left-0 flex items-center pl-2">
-                        <span className="text-gray-400 text-sm">🔍</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Dropdown Items */}
-                  <div className="max-h-60 overflow-y-auto">
-                    {filteredRawItems.length > 0 ? (
-                      filteredRawItems.map((item) => {
-                        const isSelected = selectedRawItems.some(selected => selected._id === item._id);
-                        return (
-                          <div
-                            key={item._id}
-                            onClick={() => handleSelectRawItem(item, !isSelected)}
-                            className={`px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 flex items-center justify-between ${
-                              isSelected ? 'bg-blue-50' : ''
-                            }`}
-                          >
-                            <div className="flex items-center">
-                              <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center mr-3">
-                                <span className="text-orange-600 text-xs">🏭</span>
-                              </div>
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">{item.name}</div>
-                                <div className="text-xs text-gray-500">{item.item_id} - {item.material_type}</div>
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <div className="text-sm text-gray-600">
-                                {item.quantity_in_stock} {item.unit}
-                              </div>
-                              {isSelected && (
-                                <span className="text-blue-600 text-sm">✓</span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="px-4 py-3 text-gray-500 text-sm">
-                        {searchTerm ? 'No raw items found' : 'No raw items available'}
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Action Buttons */}
-                  <div className="p-3 border-t border-gray-200 bg-gray-50 flex justify-between">
-                    <button
-                      type="button"
-                      onClick={handleSelectAllRawItems}
-                      className="text-sm text-blue-600 hover:text-blue-800"
-                    >
-                      Select All
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleClearSelection}
-                      className="text-sm text-red-600 hover:text-red-800"
-                    >
-                      Clear All
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            
 
             {/* Selected Raw Items */}
             {selectedRawItems.length > 0 ? (
               <div className="space-y-3">
                 {selectedRawItems.map((item) => {
                   const quantity = rawItemQuantities[item._id] || 0;
+                  const totalNeeded = quantity * (formData.quantity_to_make || 1);
+                  const available = item.quantity_in_stock || 0;
+                  const isInsufficient = totalNeeded > available;
+                  
                   return (
-                    <div key={item._id} className="bg-white p-3 rounded-lg border border-gray-200">
+                    <div key={item._id} className={`bg-white p-3 rounded-lg border ${
+                      isInsufficient ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                    }`}>
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center">
                           <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center mr-3">
@@ -385,6 +366,36 @@ const CreatePartsModal = ({ isOpen, onClose, onSave }) => {
                           </span>
                         )}
                       </div>
+                      
+                      {/* Stock Status */}
+                      <div className="mt-2 flex items-center justify-between">
+                        <div className="text-xs text-gray-600">
+                          Available: {item.quantity_in_stock || 0} {item.unit}
+                        </div>
+                        {(() => {
+                          const totalNeeded = quantity * (formData.quantity_to_make || 1);
+                          const available = item.quantity_in_stock || 0;
+                          const isInsufficient = totalNeeded > available;
+                          
+                          return (
+                            <div className={`text-xs px-2 py-1 rounded-full ${
+                              isInsufficient 
+                                ? 'bg-red-100 text-red-800' 
+                                : totalNeeded > 0 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {isInsufficient 
+                                ? `Short: ${(totalNeeded - available).toFixed(2)} ${item.unit}`
+                                : totalNeeded > 0 
+                                  ? `Sufficient`
+                                  : 'Set quantity'
+                              }
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      
                       {errors[`quantity_${item._id}`] && (
                         <p className="text-red-500 text-xs mt-1">{errors[`quantity_${item._id}`]}</p>
                       )}
@@ -401,12 +412,25 @@ const CreatePartsModal = ({ isOpen, onClose, onSave }) => {
                     {selectedRawItems.map(item => {
                       const quantityPerPart = rawItemQuantities[item._id] || 0;
                       const totalQuantity = quantityPerPart * (formData.quantity_to_make || 1);
+                      const available = item.quantity_in_stock || 0;
+                      const isInsufficient = totalQuantity > available;
+                      
                       return (
-                        <div key={item._id} className="flex justify-between text-xs text-blue-800">
-                          <span>{item.name}:</span>
+                        <div key={item._id} className={`flex justify-between text-xs ${
+                          isInsufficient ? 'text-red-800' : 'text-blue-800'
+                        }`}>
+                          <span className="flex items-center">
+                            {isInsufficient && <span className="text-red-600 mr-1">⚠️</span>}
+                            {item.name}:
+                          </span>
                           <span>
                             {quantityPerPart} {item.unit} per part × {formData.quantity_to_make || 1} = 
                             <strong className="ml-1">{totalQuantity.toFixed(2)} {item.unit}</strong>
+                            {isInsufficient && (
+                              <span className="text-red-600 ml-1 font-normal">
+                                (Available: {available.toFixed(2)})
+                              </span>
+                            )}
                           </span>
                         </div>
                       );
@@ -415,7 +439,7 @@ const CreatePartsModal = ({ isOpen, onClose, onSave }) => {
                   <div className="mt-2 pt-2 border-t border-blue-200">
                     <div className="flex justify-between text-sm font-medium text-blue-900">
                       <span>Total Required:</span>
-                      <span>{calculateTotalWeight().toFixed(2)} units</span>
+                      <span>{calculateTotalWeight().toFixed(2)} KG</span>
                     </div>
                   </div>
                 </div>
@@ -425,6 +449,36 @@ const CreatePartsModal = ({ isOpen, onClose, onSave }) => {
                 <div className="text-4xl mb-2">🏭</div>
                 <p>No raw items selected</p>
                 <p className="text-sm">Search and add raw items above</p>
+              </div>
+            )}
+
+            {/* Stock Validation Warning */}
+            {selectedRawItems.length > 0 && hasInsufficientStock() && (
+              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <span className="text-red-600 text-xl">⚠️</span>
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <h4 className="text-sm font-medium text-red-900 mb-2">
+                      Insufficient Stock - Cannot Create Parts
+                    </h4>
+                    <div className="space-y-1">
+                      {getStockValidationErrors().map((error, index) => (
+                        <div key={index} className="text-sm text-red-800">
+                          <strong>{error.item}:</strong> Need {error.needed.toFixed(2)} {error.unit}, 
+                          but only {error.available.toFixed(2)} {error.unit} available
+                          <span className="text-red-600 ml-2">
+                            (Short by {(error.needed - error.available).toFixed(2)} {error.unit})
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-sm text-red-700 mt-2">
+                      Please reduce the quantity to make or restock the raw materials before proceeding.
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
             
@@ -500,7 +554,7 @@ const CreatePartsModal = ({ isOpen, onClose, onSave }) => {
                 <div className="text-sm text-blue-800">
                   <p><strong>Name:</strong> {selectedPart.name}</p>
                   <p><strong>Type:</strong> {selectedPart.type}</p>
-                  <p><strong>Description:</strong> {selectedPart.description || 'N/A'}</p>
+                  {/* <p><strong>Description:</strong> {selectedPart.description || 'N/A'}</p> */}
                   <p><strong>Current Stock:</strong> {selectedPart.quantity_in_stock} {selectedPart.unit}</p>
                 </div>
               </div>
@@ -555,10 +609,10 @@ const CreatePartsModal = ({ isOpen, onClose, onSave }) => {
             </button>
             <button
               type="submit"
-              disabled={loading || selectedRawItems.length === 0}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+              disabled={loading || selectedRawItems.length === 0 || hasInsufficientStock()}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Creating...' : 'Create Parts'}
+              {loading ? 'Creating...' : hasInsufficientStock() ? 'Insufficient Stock' : 'Create Parts'}
             </button>
           </div>
         </form>

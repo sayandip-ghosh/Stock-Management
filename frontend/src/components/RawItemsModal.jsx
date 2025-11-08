@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { partsAPI } from '../services/api';
 
 const RawItemsModal = ({ isOpen, onClose, rawItem = null, onSave, onDelete }) => {
   const [formData, setFormData] = useState({
@@ -10,11 +11,36 @@ const RawItemsModal = ({ isOpen, onClose, rawItem = null, onSave, onDelete }) =>
     cost_per_unit: 0,
     description: '',
     location: '',
-    unit: 'kg'
+    unit: 'kg',
+    manufacturable_parts: []
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [viewMode, setViewMode] = useState(false);
+  const [availableParts, setAvailableParts] = useState([]);
+  const [loadingParts, setLoadingParts] = useState(false);
+  const [partSearchTerms, setPartSearchTerms] = useState({});
+  const [showPartDropdowns, setShowPartDropdowns] = useState({});
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchAvailableParts();
+    }
+  }, [isOpen]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.part-dropdown-container')) {
+        setShowPartDropdowns({});
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   useEffect(() => {
     if (rawItem) {
@@ -27,7 +53,8 @@ const RawItemsModal = ({ isOpen, onClose, rawItem = null, onSave, onDelete }) =>
         cost_per_unit: rawItem.cost_per_unit || 0,
         description: rawItem.description || '',
         location: rawItem.location || '',
-        unit: rawItem.unit || 'kg'
+        unit: rawItem.unit || 'kg',
+        manufacturable_parts: rawItem.manufacturable_parts || []
       });
       setViewMode(true);
     } else {
@@ -40,12 +67,29 @@ const RawItemsModal = ({ isOpen, onClose, rawItem = null, onSave, onDelete }) =>
         cost_per_unit: 0,
         description: '',
         location: '',
-        unit: 'kg'
+        unit: 'kg',
+        manufacturable_parts: []
       });
       setViewMode(false);
     }
     setErrors({});
+    // Reset search state
+    setPartSearchTerms({});
+    setShowPartDropdowns({});
   }, [rawItem]);
+
+  const fetchAvailableParts = async () => {
+    try {
+      setLoadingParts(true);
+      const response = await partsAPI.getAll();
+      console.log('Fetched parts:', response.data); // Debug log
+      setAvailableParts(response.data.parts || response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching parts:', error);
+    } finally {
+      setLoadingParts(false);
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value, type } = e.target;
@@ -57,6 +101,113 @@ const RawItemsModal = ({ isOpen, onClose, rawItem = null, onSave, onDelete }) =>
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
+  };
+
+  const addManufacturablePart = () => {
+    const newIndex = formData.manufacturable_parts.length;
+    setFormData(prev => ({
+      ...prev,
+      manufacturable_parts: [...prev.manufacturable_parts, {
+        part_id: '',
+        part_name: '',
+        part_type: '',
+        weight_per_unit: 0,
+        notes: ''
+      }]
+    }));
+    // Initialize search state for the new part
+    setPartSearchTerms(prev => ({ ...prev, [newIndex]: '' }));
+    setShowPartDropdowns(prev => ({ ...prev, [newIndex]: false }));
+  };
+
+  const removeManufacturablePart = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      manufacturable_parts: prev.manufacturable_parts.filter((_, i) => i !== index)
+    }));
+    
+    // Clean up search state
+    setPartSearchTerms(prev => {
+      const newSearchTerms = { ...prev };
+      delete newSearchTerms[index];
+      // Reindex remaining search terms
+      const reindexed = {};
+      Object.keys(newSearchTerms).forEach(key => {
+        const keyIndex = parseInt(key);
+        if (keyIndex > index) {
+          reindexed[keyIndex - 1] = newSearchTerms[key];
+        } else {
+          reindexed[key] = newSearchTerms[key];
+        }
+      });
+      return reindexed;
+    });
+    
+    setShowPartDropdowns(prev => {
+      const newDropdowns = { ...prev };
+      delete newDropdowns[index];
+      // Reindex remaining dropdowns
+      const reindexed = {};
+      Object.keys(newDropdowns).forEach(key => {
+        const keyIndex = parseInt(key);
+        if (keyIndex > index) {
+          reindexed[keyIndex - 1] = newDropdowns[key];
+        } else {
+          reindexed[key] = newDropdowns[key];
+        }
+      });
+      return reindexed;
+    });
+  };
+
+  const updateManufacturablePart = (index, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      manufacturable_parts: prev.manufacturable_parts.map((part, i) => {
+        if (i === index) {
+          if (field === 'part_id') {
+            const selectedPart = availableParts.find(p => p._id === value);
+            if (selectedPart) {
+              // Clear search term and hide dropdown when part is selected
+              setPartSearchTerms(prev => ({ ...prev, [index]: '' }));
+              setShowPartDropdowns(prev => ({ ...prev, [index]: false }));
+              return {
+                ...part,
+                part_id: value,
+                part_name: selectedPart.name,
+                part_type: selectedPart.type
+              };
+            }
+          }
+          return { ...part, [field]: value };
+        }
+        return part;
+      })
+    }));
+  };
+
+  const handlePartSearch = (index, searchTerm) => {
+    setPartSearchTerms(prev => ({ ...prev, [index]: searchTerm }));
+    setShowPartDropdowns(prev => ({ ...prev, [index]: searchTerm.length > 0 }));
+  };
+
+  const togglePartDropdown = (index) => {
+    setShowPartDropdowns(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+
+  const selectPart = (index, part) => {
+    updateManufacturablePart(index, 'part_id', part._id);
+  };
+
+  const getFilteredParts = (index) => {
+    const searchTerm = partSearchTerms[index] || '';
+    if (!searchTerm) return availableParts;
+    
+    return availableParts.filter(part =>
+      part.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      part.part_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      part.type.toLowerCase().includes(searchTerm.toLowerCase())
+    );
   };
 
   const validateForm = () => {
@@ -81,6 +232,16 @@ const RawItemsModal = ({ isOpen, onClose, rawItem = null, onSave, onDelete }) =>
     if (formData.cost_per_unit < 0) {
       newErrors.cost_per_unit = 'Price cannot be negative';
     }
+
+    // Validate manufacturable parts
+    formData.manufacturable_parts.forEach((part, index) => {
+      if (part.part_id && part.weight_per_unit <= 0) {
+        newErrors[`part_weight_${index}`] = 'Weight per unit must be greater than 0';
+      }
+      if (part.weight_per_unit > 0 && !part.part_id) {
+        newErrors[`part_selection_${index}`] = 'Please select a part';
+      }
+    });
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -154,7 +315,13 @@ const RawItemsModal = ({ isOpen, onClose, rawItem = null, onSave, onDelete }) =>
                 </button>
               )}
               <button
-                onClick={onClose}
+                onClick={() => {
+                  // Reset to view mode when closing if it's an existing item
+                  if (rawItem) {
+                    setViewMode(true);
+                  }
+                  onClose();
+                }}
                 className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
               >
                 ×
@@ -335,40 +502,208 @@ const RawItemsModal = ({ isOpen, onClose, rawItem = null, onSave, onDelete }) =>
 
           </div>
 
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Description
-            </label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleInputChange}
-              readOnly={viewMode}
-              rows="3"
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                viewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300'
-              }`}
-              placeholder="Enter item description"
-            />
-          </div>
+         
 
-          {/* Location */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Storage Location
-            </label>
-            <input
-              type="text"
-              name="location"
-              value={formData.location}
-              onChange={handleInputChange}
-              readOnly={viewMode}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                viewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300'
-              }`}
-              placeholder="e.g., Warehouse A, Shelf B1"
-            />
+          {/* Manufacturable Parts Section */}
+          <div className="md:col-span-2">
+            <div className="border border-gray-200 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Manufacturable Parts</h3>
+                <div className="flex items-center space-x-2">
+                  {loadingParts && (
+                    <span className="text-xs text-gray-500">Loading parts...</span>
+                  )}
+                  {!loadingParts && (
+                    <span className="text-xs text-gray-500">
+                      {availableParts.length} parts available
+                    </span>
+                  )}
+                  {!viewMode && (
+                    <button
+                      type="button"
+                      onClick={addManufacturablePart}
+                      className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 flex items-center space-x-1"
+                    >
+                      <span>+</span>
+                      <span>Add Part</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              {formData.manufacturable_parts.length > 0 ? (
+                <div className="space-y-4">
+                  {formData.manufacturable_parts.map((part, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-3 bg-gray-50 relative">
+                      {/* Remove Button - Top Right Corner */}
+                      {!viewMode && (
+                        <button
+                          type="button"
+                          onClick={() => removeManufacturablePart(index)}
+                          className="absolute top-2 right-2 text-gray-400 hover:text-red-600 text-lg font-bold w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-50"
+                          title="Remove part"
+                        >
+                          ×
+                        </button>
+                      )}
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pr-8">
+                        {/* Part Selection */}
+                        <div className="lg:col-span-2">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Part *
+                          </label>
+                          {viewMode ? (
+                            <input
+                              type="text"
+                              value={part.part_name}
+                              readOnly
+                              className="w-full px-2 py-1 border border-gray-200 rounded text-sm bg-white"
+                            />
+                          ) : (
+                            <div className="relative part-dropdown-container">
+                              {/* Search Input */}
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={part.part_name || partSearchTerms[index] || ''}
+                                  onChange={(e) => {
+                                    if (part.part_id) {
+                                      // If a part is already selected, clear it when user starts typing
+                                      updateManufacturablePart(index, 'part_id', '');
+                                      updateManufacturablePart(index, 'part_name', '');
+                                      updateManufacturablePart(index, 'part_type', '');
+                                    }
+                                    handlePartSearch(index, e.target.value);
+                                  }}
+                                  onFocus={() => setShowPartDropdowns(prev => ({ ...prev, [index]: true }))}
+                                  placeholder={loadingParts ? "Loading parts..." : "Search for a part..."}
+                                  disabled={loadingParts}
+                                  className="w-full px-2 py-1 pr-16 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                />
+                                <div className="absolute right-1 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
+                                  {part.part_id && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        updateManufacturablePart(index, 'part_id', '');
+                                        updateManufacturablePart(index, 'part_name', '');
+                                        updateManufacturablePart(index, 'part_type', '');
+                                        setPartSearchTerms(prev => ({ ...prev, [index]: '' }));
+                                      }}
+                                      className="text-gray-400 hover:text-red-600 text-xs"
+                                      title="Clear selection"
+                                    >
+                                      ✕
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => togglePartDropdown(index)}
+                                    className="text-gray-400 hover:text-gray-600"
+                                  >
+                                    <span className="text-xs">
+                                      {showPartDropdowns[index] ? '▲' : '▼'}
+                                    </span>
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Dropdown Panel */}
+                              {showPartDropdowns[index] && !loadingParts && (
+                                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                  {getFilteredParts(index).length > 0 ? (
+                                    getFilteredParts(index).map(p => (
+                                      <div
+                                        key={p._id}
+                                        onClick={() => selectPart(index, p)}
+                                        className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <div>
+                                            <div className="text-sm font-medium text-gray-900">{p.name}</div>
+                                            <div className="text-xs text-gray-500">{p.part_id} - {p.type}</div>
+                                          </div>
+                                          <div className="text-xs text-gray-500">
+                                            Stock: {p.quantity_in_stock}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="px-3 py-2 text-gray-500 text-sm">
+                                      {partSearchTerms[index] ? 'No parts found' : 'Start typing to search parts'}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Weight per Unit */}
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Weight per Unit (kg) *
+                          </label>
+                          <input
+                            type="number"
+                            value={part.weight_per_unit}
+                            onChange={(e) => updateManufacturablePart(index, 'weight_per_unit', parseFloat(e.target.value) || 0)}
+                            readOnly={viewMode}
+                            min="0"
+                            step="0.001"
+                            className={`w-20 px-2 py-1 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-purple-500 ${
+                              viewMode ? 'bg-white border-gray-200' : 'border-gray-300'
+                            }`}
+                            placeholder="0.000"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Notes */}
+                      <div className="mt-3">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Notes
+                        </label>
+                        <input
+                          type="text"
+                          value={part.notes}
+                          onChange={(e) => updateManufacturablePart(index, 'notes', e.target.value)}
+                          readOnly={viewMode}
+                          className={`w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-purple-500 ${
+                            viewMode ? 'bg-white border-gray-200' : 'border-gray-300'
+                          }`}
+                          placeholder="Optional notes about manufacturing this part"
+                        />
+                      </div>
+
+                      {/* Part Type Display */}
+                      {part.part_type && (
+                        <div className="mt-2 flex items-center space-x-2">
+                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                            {part.part_type}
+                          </span>
+                          {part.part_id && (
+                            <span className="text-xs text-gray-500">
+                              Selected: {part.part_name}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-6 text-gray-500">
+                  <div className="text-2xl mb-2">⚙️</div>
+                  <p className="text-sm">No manufacturable parts defined</p>
+                  {!viewMode && (
+                    <p className="text-xs mt-1">Add parts that can be made from this raw item</p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Status Display */}
@@ -423,7 +758,13 @@ const RawItemsModal = ({ isOpen, onClose, rawItem = null, onSave, onDelete }) =>
             <div className="flex flex-col sm:flex-row gap-3 sm:space-x-3 sm:gap-0">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={() => {
+                  // Reset to view mode when canceling if it's an existing item
+                  if (rawItem) {
+                    setViewMode(true);
+                  }
+                  onClose();
+                }}
                 className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm sm:text-base order-2 sm:order-1"
               >
                 {viewMode ? 'Close' : 'Cancel'}
