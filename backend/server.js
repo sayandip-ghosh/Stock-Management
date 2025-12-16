@@ -20,6 +20,7 @@ const purchaseOrderRoutes = require('./routes/purchaseOrders');
 const rawItemPurchaseOrderRoutes = require('./routes/rawItemPurchaseOrders');
 const rawItemRoutes = require('./routes/rawItems');
 const scrapItemRoutes = require('./routes/scrapItems');
+const pendingPartRoutes = require('./routes/pendingParts');
 const authRoutes = require('./routes/auth');
 
 // Middleware
@@ -60,6 +61,8 @@ app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/raw-item-purchase-orders', rawItemPurchaseOrderRoutes);
 app.use('/api/raw-items', rawItemRoutes);
 app.use('/api/scrap-items', scrapItemRoutes);
+app.use('/api/pending-parts', pendingPartRoutes);
+app.use('/api/pending-parts', pendingPartRoutes);
 
 
 // 404 handler
@@ -91,6 +94,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/stock_man
     console.log('- /api/raw-item-purchase-orders');
     console.log('- /api/raw-items');
     console.log('- /api/scrap-items');
+    console.log('- /api/pending-parts');
     
   });
 })

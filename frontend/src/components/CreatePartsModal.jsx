@@ -8,6 +8,8 @@ const CreatePartsModal = ({ isOpen, onClose, onSave }) => {
   const [rawItemQuantities, setRawItemQuantities] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [showRawItemDropdown, setShowRawItemDropdown] = useState(false);
+  const [partSearchTerm, setPartSearchTerm] = useState('');
+  const [showPartDropdown, setShowPartDropdown] = useState(false);
   const [formData, setFormData] = useState({
     part_id: '',
     quantity_to_make: 1,
@@ -26,6 +28,8 @@ const CreatePartsModal = ({ isOpen, onClose, onSave }) => {
       setRawItemQuantities({});
       setSearchTerm('');
       setShowRawItemDropdown(false);
+      setPartSearchTerm('');
+      setShowPartDropdown(false);
       setFormData({
         part_id: '',
         quantity_to_make: 1,
@@ -42,13 +46,16 @@ const CreatePartsModal = ({ isOpen, onClose, onSave }) => {
       if (showRawItemDropdown && !event.target.closest('.raw-item-dropdown')) {
         setShowRawItemDropdown(false);
       }
+      if (showPartDropdown && !event.target.closest('.part-dropdown')) {
+        setShowPartDropdown(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showRawItemDropdown]);
+  }, [showRawItemDropdown, showPartDropdown]);
 
   const fetchPartsAndRawItems = async () => {
     try {
@@ -281,7 +288,32 @@ const CreatePartsModal = ({ isOpen, onClose, onSave }) => {
     item.material_type?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const filteredParts = parts.filter(part =>
+    part.name?.toLowerCase().includes(partSearchTerm.toLowerCase()) ||
+    part.part_id?.toLowerCase().includes(partSearchTerm.toLowerCase()) ||
+    part.type?.toLowerCase().includes(partSearchTerm.toLowerCase())
+  );
+
   const selectedPart = parts.find(part => part._id === formData.part_id);
+
+  const handleSelectPart = (part) => {
+    setFormData(prev => ({ ...prev, part_id: part._id }));
+    setPartSearchTerm(`${part.name} (${part.part_id})`);
+    setShowPartDropdown(false);
+    autoSelectRawItemsForPart(part._id);
+    if (errors.part_id) {
+      setErrors(prev => ({ ...prev, part_id: '' }));
+    }
+  };
+
+  const handlePartSearchChange = (e) => {
+    const value = e.target.value;
+    setPartSearchTerm(value);
+    setShowPartDropdown(true);
+    if (!value) {
+      setFormData(prev => ({ ...prev, part_id: '' }));
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -486,26 +518,59 @@ const CreatePartsModal = ({ isOpen, onClose, onSave }) => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Part Selection */}
-            <div>
+            {/* Part Selection - Searchable */}
+            <div className="part-dropdown relative">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Select Part to Create *
               </label>
-              <select
-                name="part_id"
-                value={formData.part_id}
-                onChange={handleInputChange}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                  errors.part_id ? 'border-red-500' : 'border-gray-300'
-                }`}
-              >
-                <option value="">Select a part to create</option>
-                {parts.map(part => (
-                  <option key={part._id} value={part._id}>
-                    {part.name} ({part.part_id}) - {part.type}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={partSearchTerm}
+                  onChange={handlePartSearchChange}
+                  onFocus={() => setShowPartDropdown(true)}
+                  placeholder="Search for a part..."
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                    errors.part_id ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                />
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                  🔍
+                </div>
+
+                {/* Dropdown */}
+                {showPartDropdown && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {filteredParts.length > 0 ? (
+                      <div className="py-1">
+                        {filteredParts.map(part => (
+                          <div
+                            key={part._id}
+                            onClick={() => handleSelectPart(part)}
+                            className={`px-3 py-2 cursor-pointer hover:bg-purple-50 ${
+                              formData.part_id === part._id ? 'bg-purple-100' : ''
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">{part.name}</div>
+                                <div className="text-xs text-gray-500">{part.part_id} - {part.type}</div>
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                Stock: {part.quantity_in_stock || 0} {part.unit}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="px-3 py-4 text-center text-sm text-gray-500">
+                        No parts found matching "{partSearchTerm}"
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               {errors.part_id && <p className="text-red-500 text-sm mt-1">{errors.part_id}</p>}
             </div>
 
@@ -598,6 +663,24 @@ const CreatePartsModal = ({ isOpen, onClose, onSave }) => {
             </div>
           </div>
 
+          {/* Quality Control Notice */}
+          {/* <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <span className="text-blue-600 text-xl">🔍</span>
+              </div>
+              <div className="ml-3">
+                <h4 className="text-sm font-medium text-blue-900 mb-1">Quality Control Review Required</h4>
+                <div className="text-sm text-blue-800 space-y-1">
+                  <p>• Parts will be created for quality control review</p>
+                  <p>• Raw materials will be consumed immediately</p>
+                  <p>• Parts must be inspected and approved before being added to main stock</p>
+                  <p>• Rejected parts and materials will be moved to scrap</p>
+                </div>
+              </div>
+            </div>
+          </div> */}
+
           {/* Action Buttons */}
           <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
             <button
@@ -612,7 +695,7 @@ const CreatePartsModal = ({ isOpen, onClose, onSave }) => {
               disabled={loading || selectedRawItems.length === 0 || hasInsufficientStock()}
               className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Creating...' : hasInsufficientStock() ? 'Insufficient Stock' : 'Create Parts'}
+              {loading ? 'Creating...' : hasInsufficientStock() ? 'Insufficient Stock' : 'Create Parts for Review'}
             </button>
           </div>
         </form>

@@ -106,6 +106,15 @@ export const partsAPI = {
   getManufacturingStatistics: (params = {}) => api.get('/parts/manufacturing-records/stats/summary', { params })
 };
 
+// Pending Parts API
+export const pendingPartsAPI = {
+  getAll: (params = {}) => api.get('/pending-parts', { params }),
+  getById: (id) => api.get(`/pending-parts/${id}`),
+  review: (id, data) => api.post(`/pending-parts/${id}/review`, data),
+  getStats: () => api.get('/pending-parts/stats/summary'),
+  delete: (id) => api.delete(`/pending-parts/${id}`)
+};
+
 // Assemblies API
 export const assembliesAPI = {
   getAll: (params = {}) => {

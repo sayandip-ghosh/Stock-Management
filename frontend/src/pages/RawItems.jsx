@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import RawItemsModal from '../components/RawItemsModal';
 import CreatePartsModal from '../components/CreatePartsModal';
+import PendingPartsModal from '../components/PendingPartsModal';
 import RawItemPurchaseOrderModal from '../components/RawItemPurchaseOrderModal';
 import ScrapItemsModal from '../components/ScrapItemsModal';
 import AddScrapModal from '../components/AddScrapModal';
 import RawItemReceiveModal from '../components/RawItemReceiveModal';
 
-import { rawItemsAPI, partsAPI, rawItemPurchaseOrdersAPI, scrapItemsAPI } from '../services/api';
+import { rawItemsAPI, partsAPI, rawItemPurchaseOrdersAPI, scrapItemsAPI, pendingPartsAPI } from '../services/api';
 
 const RawItems = () => {
   const [rawItems, setRawItems] = useState([]);
@@ -28,6 +29,7 @@ const RawItems = () => {
   const [isReceiveItemsModalOpen, setIsReceiveItemsModalOpen] = useState(false);
   const [pendingOrders, setPendingOrders] = useState([]);
   const [isViewAllPendingOrdersModalOpen, setIsViewAllPendingOrdersModalOpen] = useState(false);
+  const [isPendingPartsModalOpen, setIsPendingPartsModalOpen] = useState(false);
 
   useEffect(() => {
     fetchRawItems();
@@ -191,8 +193,9 @@ const RawItems = () => {
       
       console.log('Parts created successfully:', response.data);
       
-      // Show success message
-      alert(`Successfully created ${response.data.data.part.quantity_created} ${response.data.data.part.name}!`);
+      // Show success message for pending parts
+      const pendingPart = response.data.data.pending_part;
+      alert(`Successfully created ${pendingPart.quantity_created} ${pendingPart.part_name} for quality review!\n\nParts are now pending quality control inspection before being added to main stock.`);
       
       // Refresh the raw items list to show updated stock levels
       await fetchRawItems();
@@ -208,6 +211,15 @@ const RawItems = () => {
       alert(`Error: ${errorMessage}`);
       throw error;
     }
+  };
+
+  const handleReviewPendingParts = () => {
+    setIsPendingPartsModalOpen(true);
+  };
+
+  const handlePendingPartsReviewComplete = () => {
+    // Refresh raw items to show any updated stock levels after reviews
+    fetchRawItems();
   };
 
   const fetchScrapItems = async () => {
@@ -260,6 +272,11 @@ const RawItems = () => {
   const handleScrapAdded = () => {
     fetchScrapItems();
     fetchRawItems(); // Also refresh raw items to show updated stock levels
+  };
+
+  const handleUseScrap = (scrapItem) => {
+    setSelectedScrapItem(scrapItem);
+    setIsScrapModalOpen(true);
   };
 
   const filteredRawItems = rawItems.filter(item => {
@@ -331,6 +348,15 @@ const RawItems = () => {
               <span>⚙️</span>
               <span className="hidden sm:inline">Create Parts</span>
               <span className="sm:hidden">Parts</span>
+            </button>
+
+            <button
+              onClick={handleReviewPendingParts}
+              className="bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 flex items-center space-x-1 text-sm whitespace-nowrap flex-shrink-0"
+            >
+              <span>👁️</span>
+              <span className="hidden sm:inline">Review Parts</span>
+              <span className="sm:hidden">Review</span>
             </button>
             
           </div>
@@ -509,11 +535,10 @@ const RawItems = () => {
                 <table className="w-full divide-y divide-gray-200" style={{minWidth: '700px'}}>
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
-                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Source Raw Item</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Scrap Raw Item</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Origin of Production</th>
                       <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
                       <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Operation</th>
-                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Part Name</th>
                       <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Date</th>
                       <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
@@ -527,40 +552,58 @@ const RawItems = () => {
                               <span className="text-orange-600 text-xs">♻️</span>
                             </div>
                             <div>
-                              <div className="text-sm text-gray-900">{scrap.name}</div>
-                              <div className="text-xs text-gray-500">{scrap.item_id}</div>
+                              <div className="text-sm font-medium text-gray-900">{scrap.raw_item_id?.name || 'Unknown Raw Item'}</div>
+                              <div className="text-xs text-gray-500">{scrap.raw_item_id?.item_id || scrap.item_id}</div>
                               <div className="text-xs text-gray-500 lg:hidden">
-                                {scrap.raw_item_id?.name || 'N/A'}
+                                Origin: {scrap.source_details?.part_name || 'N/A'}
                               </div>
                             </div>
                           </div>
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden lg:table-cell">
-                          {scrap.raw_item_id?.name || 'N/A'}
+                          <div className="text-sm text-gray-900">{scrap.source_details?.part_name || 'N/A'}</div>
+                          <div className="text-xs text-gray-500">
+                            {scrap.source_details?.operator ? `Operator: ${scrap.source_details.operator}` : ''}
+                          </div>
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{scrap.quantity_available} {scrap.unit}</div>
+                          <div className="text-sm font-medium text-gray-900">{scrap.quantity_available} {scrap.unit}</div>
                           <div className="text-xs text-gray-500 md:hidden">
                             {scrap.source_operation?.charAt(0).toUpperCase() + scrap.source_operation?.slice(1) || 'N/A'}
                           </div>
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden md:table-cell">
-                          {scrap.source_operation?.charAt(0).toUpperCase() + scrap.source_operation?.slice(1) || 'N/A'}
-                        </td>
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden lg:table-cell">
-                          {scrap.source_details?.part_name || 'N/A'}
+                          <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-orange-100 text-orange-800">
+                            {scrap.source_operation?.charAt(0).toUpperCase() + scrap.source_operation?.slice(1) || 'N/A'}
+                          </span>
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden sm:table-cell">
-                          {scrap.source_details?.operation_date ? 
-                            new Date(scrap.source_details.operation_date).toLocaleDateString() : 'N/A'}
+                          <div className="text-sm text-gray-900">
+                            {scrap.source_details?.operation_date ? 
+                              new Date(scrap.source_details.operation_date).toLocaleDateString() : 'N/A'}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {scrap.created_at ? 
+                              `Added: ${new Date(scrap.created_at).toLocaleDateString()}` : ''}
+                          </div>
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => handleEditScrapItem(scrap)}
-                            className="text-orange-600 hover:text-orange-900"
-                          >
-                            Edit
-                          </button>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleEditScrapItem(scrap)}
+                              className="text-orange-600 hover:text-orange-900 text-xs sm:text-sm"
+                            >
+                              Edit
+                            </button>
+                            {scrap.quantity_available > 0 && (
+                              <button
+                                onClick={() => handleUseScrap(scrap)}
+                                className="text-green-600 hover:text-green-900 text-xs sm:text-sm"
+                              >
+                                Use
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -752,6 +795,13 @@ const RawItems = () => {
         isOpen={isCreatePartsModalOpen}
         onClose={() => setIsCreatePartsModalOpen(false)}
         onSave={handleSaveParts}
+      />
+
+      {/* Pending Parts Review Modal */}
+      <PendingPartsModal
+        isOpen={isPendingPartsModalOpen}
+        onClose={() => setIsPendingPartsModalOpen(false)}
+        onReviewComplete={handlePendingPartsReviewComplete}
       />
 
       {/* Raw Item Purchase Order Modal */}

@@ -3,8 +3,10 @@ const Part = require('../models/Part');
 const StockTransaction = require('../models/StockTransaction');
 const RawItem = require('../models/RawItem');
 const ManufacturingRecord = require('../models/ManufacturingRecord');
+const PendingPart = require('../models/PendingPart');
 const mongoose = require('mongoose');
 
+// Validation middleware
 // Validation middleware
 const validatePart = [
   body('name').trim().isLength({ min: 1, max: 100 }).withMessage('Name is required and must be less than 100 characters'),
@@ -340,6 +342,9 @@ const getPartStatistics = async (req, res) => {
 
 // Create parts from raw items
 const createPartsFromRawItems = async (req, res) => {
+  console.log('=== CREATE PARTS FROM RAW ITEMS STARTED ===');
+  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  
   const session = await mongoose.startSession();
   
   try {
@@ -436,14 +441,14 @@ const createPartsFromRawItems = async (req, res) => {
       
       // Create stock transaction for raw item withdrawal
       const rawItemTransaction = new StockTransaction({
-        part_reference: rawItemId,
+        raw_item_reference: rawItemId,
         transaction_type: 'WITHDRAWAL',
         quantity: totalQuantityNeeded,
         unit_price: rawItem.cost_per_unit || 0,
         total_value: (rawItem.cost_per_unit || 0) * totalQuantityNeeded,
-        reference: `Manufacturing - ${part.name}`,
+        reference: `Manufacturing - ${part.name} (Pending Review)`,
         reference_type: 'OTHER',
-        notes: `Used to create ${quantity_to_make} ${part.name} (${quantity_used} per part)`,
+        notes: `Raw item consumed for manufacturing ${part.name}${notes ? ` - ${notes}` : ''}`,
         previous_stock: rawItem.quantity_in_stock,
         new_stock: newRawItemStock,
         date: new Date(),
@@ -472,46 +477,21 @@ const createPartsFromRawItems = async (req, res) => {
       await transaction.save({ session });
     }
     
-    // Update part stock (add the created parts)
-    const previousPartStock = part.quantity_in_stock;
-    const newPartStock = previousPartStock + quantity_to_make;
+    // Update part stock (add the created parts) - REMOVED FOR PENDING REVIEW
+    // We no longer directly add parts to stock - they go to pending review first
     
-    await Part.updateOne(
-      { _id: part_id },
-      { 
-        $set: { 
-          quantity_in_stock: newPartStock,
-          last_restocked: new Date()
-        }
-      },
-      { session }
-    );
+    // Calculate total manufacturing cost
+    const totalManufacturingCost = raw_items_used.reduce((total, item) => {
+      const rawItem = fetchedRawItems.find(ri => ri._id.toString() === item._id);
+      return total + ((rawItem?.cost_per_unit || 0) * item.quantity_used * quantity_to_make);
+    }, 0);
     
-    // Create stock transaction for part addition
-    const partTransaction = new StockTransaction({
-      part_reference: part_id,
-      transaction_type: 'DELIVERY',
-      quantity: quantity_to_make,
-      unit_price: part.cost_per_unit || 0,
-      total_value: (part.cost_per_unit || 0) * quantity_to_make,
-      reference: `Manufacturing - ${part.name}`,
-      reference_type: 'OTHER',
-      notes: `Created from raw items${notes ? ` - ${notes}` : ''}`,
-      previous_stock: previousPartStock,
-      new_stock: newPartStock,
-      date: new Date(),
-      created_by: 'system'
-    });
-    
-    partTransaction.transaction_id = await generateTransactionId(session);
-    await partTransaction.save({ session });
-    
-    // Create manufacturing record and save to database
-    console.log('Creating manufacturing record...');
-    const manufacturingRecordData = {
+    // Create pending part record for review instead of manufacturing record
+    const pendingPartData = {
       part_id: part_id,
       part_name: part.name,
       part_part_id: part.part_id,
+      part_type: part.type,
       quantity_created: quantity_to_make,
       vendor_type: vendor_type || 'internal',
       raw_items_used: raw_items_used.map(item => {
@@ -528,43 +508,30 @@ const createPartsFromRawItems = async (req, res) => {
         };
       }),
       production_date: new Date(),
-      completed_date: new Date(),
+      total_manufacturing_cost: totalManufacturingCost,
       notes: notes || '',
       created_by: 'system',
-      status: 'completed',
-      quality_control: {
-        passed: true,
-        inspection_date: new Date()
-      }
+      status: 'pending_review'
     };
     
-    console.log('Manufacturing record data:', JSON.stringify(manufacturingRecordData, null, 2));
-    
-    // Generate manufacturing_id manually
-    const manufacturingId = `MFG${Date.now().toString().slice(-6)}`;
-    manufacturingRecordData.manufacturing_id = manufacturingId;
-    
-    const manufacturingRecord = new ManufacturingRecord(manufacturingRecordData);
-    console.log('Saving manufacturing record with ID:', manufacturingId);
-    await manufacturingRecord.save({ session });
-    console.log('Manufacturing record saved successfully');
+    console.log('Creating pending part for review...');
+    const pendingPart = new PendingPart(pendingPartData);
+    await pendingPart.save({ session });
+    console.log('Pending part created successfully with ID:', pendingPart.pending_part_id);
     
     await session.commitTransaction();
     
-    // Populate the part details for response
-    await part.populate('_id');
-    
     res.status(201).json({
       success: true,
-      message: `Successfully created ${quantity_to_make} ${part.name} from raw items`,
+      message: `Successfully created ${quantity_to_make} ${part.name} for quality review. Raw materials have been consumed.`,
       data: {
-        part: {
-          _id: part._id,
-          name: part.name,
-          part_id: part.part_id,
-          previous_stock: previousPartStock,
-          new_stock: newPartStock,
-          quantity_created: quantity_to_make
+        pending_part: {
+          pending_part_id: pendingPart.pending_part_id,
+          part_name: pendingPart.part_name,
+          part_id: pendingPart.part_part_id,
+          quantity_created: pendingPart.quantity_created,
+          status: pendingPart.status,
+          production_date: pendingPart.production_date
         },
         raw_items_consumed: rawItemUpdates.map(update => ({
           raw_item_id: update.rawItemId,
@@ -572,26 +539,19 @@ const createPartsFromRawItems = async (req, res) => {
           previous_stock: update.previousStock,
           new_stock: update.newStock
         })),
-        manufacturing_record: {
-          manufacturing_id: manufacturingRecord.manufacturing_id,
-          part_name: manufacturingRecord.part_name,
-          quantity_created: manufacturingRecord.quantity_created,
-          vendor_type: manufacturingRecord.vendor_type,
-          production_date: manufacturingRecord.production_date,
-          total_manufacturing_cost: manufacturingRecord.total_manufacturing_cost,
-          raw_items_used: manufacturingRecord.raw_items_used
-        },
-        transactions: {
-          part_transaction_id: partTransaction.transaction_id,
-          raw_item_transaction_ids: stockTransactions.map(t => t.transaction_id)
-        }
+        total_manufacturing_cost: totalManufacturingCost,
+        review_required: true,
+        message: 'Parts are now pending quality control review before being added to main stock.'
       }
     });
     
   } catch (error) {
     await session.abortTransaction();
+    console.error('=== ERROR IN CREATE PARTS FROM RAW ITEMS ===');
     console.error('Error creating parts from raw items:', error);
     console.error('Error stack:', error.stack);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to create parts from raw items',
